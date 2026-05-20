@@ -1,244 +1,196 @@
+import { useState, useEffect } from "react";
+import { TrainingApi } from "../../../services/api";
+import { useAuth } from '../../context/AuthContext';
 import {
+    FormControl,
+    MenuItem,
+    Select,
+    InputLabel,
     Box,
     Button,
-    ThemeProvider,
+    TextField,
+    Alert,
+    CircularProgress,
+    Snackbar
 } from '@mui/material';
-import NavBar from '../../layout/NavBar';
-import { darkTheme } from '../../../theme/darkTheme';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import { useNavigate } from 'react-router-dom';
-import NavBarBot from '../../layout/NavBarBot';
 
-function LoginDark() {
+const INITIAL_DATA = {
+    name: "",
+    beschreibung: "",
+    zielmuskel: "",
+    kategorie: ""
+};
 
-    const navigate = useNavigate();
+const ZIELMUSKEL_OPTIONS = [
+    { value: "Brust", label: "Brust" },
+    { value: "Ruecken", label: "Rücken" },
+    { value: "Schultern", label: "Schultern" },
+    { value: "Bizeps", label: "Bizeps" },
+    { value: "Trizeps", label: "Trizeps" },
+    { value: "Beine", label: "Beine" },
+    { value: "Bauch", label: "Bauch" },
+    { value: "Gesaess", label: "Gesäß" },
+];
+
+const KATEGORIE_OPTIONS = [
+    { value: "Push", label: "Push" },
+    { value: "Pull", label: "Pull" },
+    { value: "Beine", label: "Beine" },
+    { value: "Core", label: "Core" },
+];
+
+const UebungForm = () => {
+    const { nutzer } = useAuth();
+
+    const [data, setData] = useState(INITIAL_DATA);
+    const [loading, setLoading] = useState(false);
+    const [submitError, setSubmitError] = useState("");
+    const [successOpen, setSuccessOpen] = useState(false);
+    const [fieldErrors, setFieldErrors] = useState({});
+
+    useEffect(() => {
+        if (!nutzer) return;
+        const getUebungen = async () => {
+            try {
+                await TrainingApi.getUebungenByUserId(nutzer.id);
+            } catch (err) {
+                console.error("Fehler beim Laden der Übungen:", err);
+            }
+        };
+        getUebungen();
+    }, [nutzer]);
+
+    const validate = () => {
+        const errors = {};
+        if (!data.name.trim()) errors.name = "Name ist erforderlich.";
+        if (!data.kategorie) errors.kategorie = "Kategorie ist erforderlich.";
+        return errors;
+    };
+
+    const handleChange = (field) => (e) => {
+        setData((prev) => ({ ...prev, [field]: e.target.value }));
+        if (fieldErrors[field]) {
+            setFieldErrors((prev) => ({ ...prev, [field]: "" }));
+        }
+    };
+
+    const handleSave = async (e) => {
+        e.preventDefault();
+        setSubmitError("");
+
+        const errors = validate();
+        if (Object.keys(errors).length > 0) {
+            setFieldErrors(errors);
+            return;
+        }
+
+        setLoading(true);
+        try {
+            await TrainingApi.postCreateUserUebung(data, nutzer.id);
+            setData(INITIAL_DATA);
+            setSuccessOpen(true);
+        } catch (err) {
+            console.error("Fehler beim Speichern:", err);
+            setSubmitError("Speichern fehlgeschlagen. Bitte erneut versuchen.");
+        } finally {
+            setLoading(false);
+        }
+    };
 
     return (
-        <ThemeProvider theme={darkTheme}>
-            <Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
-                <NavBar />
-                <Button>
-                    <ArrowBackIcon /> zurück
-                </Button>
-                <Button
-                    startIcon={<ArrowBackIcon />}
-                    onClick={() => navigate(-1)}
-                    sx={{
-                        mb: { xs: 1, md: 2 },
-                        color: "#93c5fd",
-                        background: "rgba(59, 130, 246, 0.1)",
-                        borderRadius: "16px",
-                        padding: "6px 12px",
-                    }}
-                >
-                    Zurück
-                </Button>
-                <Button
-                    variant="outlined"
-                    size="small"
-                    startIcon={<ArrowBackIcon />}
-                    onClick={() => navigate(-1)}
-                    sx={{
-                        color: '#f87171',
-                        borderColor: '#f87171',
-                        borderRadius: '16px',
-                        backgroundColor: '#1f2937',
-                        '&:hover': {
-                            borderColor: '#f87171',
-                        },
-                    }}
-                >
-                    Zurück
-                </Button>
-                <Button
-                    variant="outlined"
-                    size="small"
-                    startIcon={<ArrowBackIcon />}
-                    onClick={() => navigate(-1)}
-                    sx={{
-                        color: '#e0f2fe',
-                        borderColor: '#f87171',
-                        borderRadius: '16px',
-                        backgroundColor: '#1f2937',
-                        textTransform: 'none',
-                        fontWeight: 500,
-                        '&:hover': {
-                            backgroundColor: '#1f2937',
-                            borderColor: '#f87171',
-                            color: '#e0f2fe',
-                        },
-                    }}
-                >
-                    Zurück
-                </Button>
-                <Button
-                    variant="outlined"
-                    size="small"
-                    startIcon={<ArrowBackIcon />}
-                    onClick={() => navigate(-1)}
-                    sx={{
-                        color: '#f87171',
-                        borderColor: '#f87171',
-                        borderRadius: '16px',
-                        backgroundColor: '#1e3a8a',
-                        boxShadow: '0 2px 4px rgba(168, 85, 247, 0.2)',
-                        textTransform: 'none',
-                        fontWeight: 600,
-                        '&:hover': {
-                            backgroundColor: '#1f2937',
-                            boxShadow: '0 4px 8px rgba(168, 85, 247, 0.3)',
-                            borderColor: '#a78bfa',
-                        },
-                    }}
-                >
-                    Zurück
-                </Button>
-                <Button
-                    variant="outlined"
-                    size="small"
-                    startIcon={<ArrowBackIcon />}
-                    onClick={() => navigate(-1)}
-                    sx={{
-                        color: '#d1d5db',
-                        borderColor: 'rgba(59, 130, 246, 0.3)',
-                        borderRadius: '16px',
-                        backgroundColor: '#111827',
-                        textTransform: 'none',
-                        fontWeight: 500,
-                        padding: '6px 12px',
-                        '&:hover': {
-                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                            borderColor: 'rgba(59, 130, 246, 0.5)',
-                            boxShadow: '0 0 8px rgba(59, 130, 246, 0.3)',
-                        },
-                        transition: 'all 0.3s ease-in-out',
-                    }}
-                >
-                    Zurück
-                </Button>
-                <Button
-                    variant="contained"
-                    size="small"
-                    startIcon={<ArrowBackIcon />}
-                    onClick={() => navigate(-1)}
-                    sx={{
-                        color: '#e5e7eb',
-                        backgroundColor: '#1f2937',
-                        borderRadius: '16px',
-                        border: '1px solid rgba(55, 65, 81, 0.5)',
-                        textTransform: 'none',
-                        fontWeight: 500,
-                        padding: '5px 10px',
-                        marginBottom: "20px",
-                        '&:hover': {
-                            backgroundColor: '#374151',
-                            borderColor: 'rgba(55, 65, 81, 0.8)',
-                            boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
-                        },
-                        transition: 'all 0.2s ease',
-                    }}
-                >
-                    Zurück
-                </Button>
-                <Button
-                    variant="outlined"
-                    size="small"
-                    startIcon={<ArrowBackIcon />}
-                    onClick={() => navigate(-1)}
-                    sx={{
-                        color: '#9ca3af',
-                        borderColor: 'transparent',
-                        borderRadius: '16px',
-                        background: 'linear-gradient(to right, #1f2937, #111827)',
-                        textTransform: 'none',
-                        fontWeight: 400,
-                        padding: '6px 14px',
-                        '&:hover': {
-                            background: 'linear-gradient(to right, #374151, #1f2937)',
-                            color: '#e5e7eb',
-                            borderColor: 'rgba(139, 92, 246, 0.2)',
-                        },
-                        transition: 'all 0.3s ease',
-                    }}
-                >
-                    Zurück
-                </Button>
-                <Button
-                    variant="contained"
-                    size="small"
-                    startIcon={<ArrowBackIcon />}
-                    onClick={() => navigate(-1)}
-                    sx={{
-                        color: '#93c5fd',
-                        backgroundColor: '#111827',
-                        borderRadius: '16px',
-                        border: '1px solid rgba(168, 85, 247, 0.2)',
-                        textTransform: 'none',
-                        fontWeight: 500,
-                        padding: '6px 14px',
-                        boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
-                        '&:hover': {
-                            backgroundColor: '#1e3a8a',
-                            borderColor: 'rgba(168, 85, 247, 0.4)',
-                            boxShadow: '0 2px 8px rgba(59, 130, 246, 0.3)',
-                            color: '#e0f2fe',
-                        },
-                        transition: 'all 0.2s ease',
-                    }}
-                >
-                    Zurück
-                </Button>
-                <Button
-                    variant="outlined"
-                    size="small"
-                    startIcon={<ArrowBackIcon />}
-                    onClick={() => navigate(-1)}
-                    sx={{
-                        color: '#e0f2fe',
-                        borderColor: 'rgba(59, 130, 246, 0.3)',
-                        borderRadius: '16px',
-                        backgroundColor: '#1f2937',
-                        textTransform: 'none',
-                        fontWeight: 500,
-                        padding: '6px 14px',
-                        borderWidth: '1px',
-                        '&:hover': {
-                            background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(168, 85, 247, 0.1) 100%)',
-                            borderColor: 'rgba(59, 130, 246, 0.5)',
-                            color: '#e0f2fe',
-                        },
-                        transition: 'all 0.3s ease-in-out',
-                    }}
-                >
-                    Zurück
-                </Button>
-                <Button
-                    variant="outlined"
-                    size="small"
-                    startIcon={<ArrowBackIcon />}
-                    onClick={() => navigate(-1)}
-                    sx={{
-                        color: '#f87171',
-                        borderColor: 'rgba(239, 68, 68, 0.3)',
-                        borderRadius: '16px',
-                        background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
-                        textTransform: 'none',
-                        fontWeight: 500,
-                        padding: '6px 14px',
-                        '&:hover': {
-                            background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%)',
-                            borderColor: 'rgba(239, 68, 68, 0.5)',
-                            color: '#f87171',
-                        },
-                        transition: 'all 0.3s ease',
-                    }}
-                >
-                    Zurück
-                </Button>
-            </Box>
-            <NavBarBot mainBtnF={() => navigate("/test")} mainBtnTxt={<ArrowBackIcon />} />
-        </ThemeProvider>
-    );
-}
+        <Box sx={{ m: 2 }}>
+            <form onSubmit={handleSave} noValidate>
 
-export default LoginDark;
+                {submitError && (
+                    <Alert severity="error" sx={{ mb: 2 }}>
+                        {submitError}
+                    </Alert>
+                )}
+
+                <TextField
+                    sx={{ bgcolor: "white", mb: 2 }}
+                    label="Name"
+                    fullWidth
+                    required
+                    value={data.name}
+                    onChange={handleChange("name")}
+                    error={!!fieldErrors.name}
+                    helperText={fieldErrors.name}
+                />
+
+                <TextField
+                    sx={{ bgcolor: "white", mb: 2 }}
+                    label="Beschreibung"
+                    fullWidth
+                    multiline
+                    rows={3}
+                    value={data.beschreibung}
+                    onChange={handleChange("beschreibung")}
+                />
+
+                <FormControl fullWidth sx={{ mb: 2 }}>
+                    <InputLabel>Zielmuskel</InputLabel>
+                    <Select
+                        sx={{ bgcolor: "white" }}
+                        label="Zielmuskel"
+                        value={data.zielmuskel}
+                        onChange={handleChange("zielmuskel")}
+                    >
+                        <MenuItem value="">
+                            <em>Kein Zielmuskel</em>
+                        </MenuItem>
+                        {ZIELMUSKEL_OPTIONS.map(({ value, label }) => (
+                            <MenuItem key={value} value={value}>{label}</MenuItem>
+                        ))}
+                    </Select>
+                </FormControl>
+
+                <FormControl fullWidth sx={{ mb: 2 }} required error={!!fieldErrors.kategorie}>
+                    <InputLabel>Kategorie *</InputLabel>
+                    <Select
+                        sx={{ bgcolor: "white" }}
+                        label="Kategorie *"
+                        value={data.kategorie}
+                        onChange={handleChange("kategorie")}
+                    >
+                        <MenuItem value="">
+                            <em>Bitte wählen</em>
+                        </MenuItem>
+                        {KATEGORIE_OPTIONS.map(({ value, label }) => (
+                            <MenuItem key={value} value={value}>{label}</MenuItem>
+                        ))}
+                    </Select>
+                    {fieldErrors.kategorie && (
+                        <Box sx={{ color: "error.main", fontSize: "0.75rem", mt: 0.5, ml: 1.75 }}>
+                            {fieldErrors.kategorie}
+                        </Box>
+                    )}
+                </FormControl>
+
+                <Button
+                    type="submit"
+                    variant="contained"
+                    color="primary"
+                    disabled={loading}
+                    startIcon={loading ? <CircularProgress size={16} color="inherit" /> : null}
+                    sx={{ mt: 1 }}
+                >
+                    {loading ? "Wird gespeichert…" : "Speichern"}
+                </Button>
+            </form>
+
+            <Snackbar
+                open={successOpen}
+                autoHideDuration={3000}
+                onClose={() => setSuccessOpen(false)}
+                anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+            >
+                <Alert severity="success" onClose={() => setSuccessOpen(false)}>
+                    Übung erfolgreich gespeichert!
+                </Alert>
+            </Snackbar>
+        </Box>
+    );
+};
+
+export default UebungForm;

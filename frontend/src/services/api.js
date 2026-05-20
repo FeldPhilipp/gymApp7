@@ -117,6 +117,11 @@ export const TrainingApi = {
     getCustomPlaene: (nutzerId) => api.get(`/custom-trainingsplan/nutzer/${nutzerId}`),
     getCustomPlanUebungen: (planId, nutzerId) =>
         api.get(`/custom-trainingsplan/${planId}`, { params: { nutzerId } }),
+
+    postCreateUserUebung: (data, nutzerId) =>
+        api.post(`/uebungen/user-uebung`, data, { params: { nutzerId } }),
+    getUebungenByUserId: (nutzerId) =>
+        api.get(`/uebungen/user-uebungen/${nutzerId}`),
 };
 
 export const GruppenApi = {
