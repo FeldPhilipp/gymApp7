@@ -1,0 +1,28 @@
+# Node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Environment Variables (Geheimnisse!)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+# Ausnahme für Frontend-Prod-Config, da diese nur öffentliche URLs enthält
+!frontend/.env.production
+!frontend/.env
+
+# Build outputs
+frontend/build/
+frontend/dist/
+
+# Datenbank Dumps
+*.sql
+*.sqlite
+
+# OS & Editor
+.DS_Store
+.vscode/
+.idea/
+Thumbs.db
