@@ -4,8 +4,8 @@ const uebungenController = require('../controllers/uebungenController');
 
 router.get('/', uebungenController.getAllUebungen);
 router.get('/kategorie/:kategorie', uebungenController.getUebungenByKategorie);
-router.get('/:id', uebungenController.getUebungById);
 router.post('/user-uebung', uebungenController.createUserUebung);
 router.get('/user-uebungen/:id', uebungenController.getUebungByUserId);
+router.get('/:id', uebungenController.getUebungById);
 
 module.exports = router;

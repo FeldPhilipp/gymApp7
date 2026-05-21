@@ -24,6 +24,7 @@ Die **GymApp** (TrainingsApp) ist eine moderne Web-Anwendung zur Verwaltung von 
 ### Kernfunktionen:
 - **Nutzer-Management**: Profilverwaltung, Authentifizierung (JWT), Passwort-Wiederherstellung.
 - **Trainingspläne**: Verwaltung von Standard-Plänen sowie hochgradig anpassbaren "Custom-Trainingsplänen".
+- **Eigene Übungen**: Nutzer können persönliche Übungen anlegen und einsehen (Tabelle `nutzer_eigene_uebungen`; UI vorläufig unter Route `/test`).
 - **Trainings-Tracking**: Aufzeichnung von Einheiten (Sätze, Wiederholungen, Gewicht) und Historien-Ansicht.
 - **Gruppen-System**: Erstellung von Trainingsgruppen, Kalender-Verwaltung, Einladungen und globale Gruppen-Highscores.
 - **Echtzeit-Interaktion**: Kommentarsystem in Terminen via WebSockets (Socket.io).
@@ -57,6 +58,7 @@ Die Applikation ist klar nach fachlichen Domains getrennt:
 ### 1. Training & Pläne
 - `Trainingsergebnisse` / `TrainingDetail`: Tracken und Anzeigen von absolvierten Sessions.
 - `CustomTrainingsplan`: Ermöglicht es Nutzern, eigene Pläne zusammenzustellen.
+- `Test.jsx` (Route `/test`): Anlegen und Auflisten nutzerspezifischer Übungen (vorläufige Produktions-UI).
 - `Historie`: Rückblick auf vergangene Einheiten.
 
 ### 2. Gruppen & Social
@@ -94,7 +96,7 @@ In `App.js` ist ein Update-Service integriert, der regelmäßig prüft, ob eine 
 Das Backend exponiert folgende Haupt-Routengruppen (siehe `server.js`):
 
 - **`/api/nutzer`**: Login, Register, Passwort-Reset, Session-Validation.
-- **`/api/uebungen`**: CRUD-Operationen für die Übungsdatenbank.
+- **`/api/uebungen`**: CRUD für die globale Übungsdatenbank; zusätzlich `POST /user-uebung` (eigene Übung anlegen) und `GET /user-uebungen/:nutzerId` (eigene Übungen eines Nutzers).
 - **`/api/trainingsplaene`**: Verwaltung von allgemeinen Trainingsplänen.
 - **`/api/custom-trainingsplan`**: Nutzerspezifische Pläne.
 - **`/api/training`**: Speichern und Abrufen von Trainings-Sessions.

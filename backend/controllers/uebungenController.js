@@ -40,13 +40,13 @@ exports.createUserUebung = async (req, res) => {
   try {
     const { name, beschreibung, zielmuskel, kategorie } = req.body;
     const userId = req.user.id;
-    console.log(userId, name, beschreibung, zielmuskel, kategorie)
 
-    await db.query(
+    const [result] = await db.query(
       'INSERT INTO nutzer_eigene_uebungen (nutzer_id, uebung_name, uebung_beschreibung, zielmuskel, kategorie) VALUES (?, ?, ?, ?, ?)',
-      [userId, name, beschreibung, zielmuskel, kategorie]
+      [userId, name, beschreibung, zielmuskel || null, kategorie]
     );
 
+    res.status(201).json({ id: result.insertId, message: 'Übung erfolgreich erstellt' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -57,9 +57,6 @@ exports.getUebungByUserId = async (req, res) => {
   try {
     const { id } = req.params;
     const [rows] = await db.query('SELECT * FROM nutzer_eigene_uebungen WHERE nutzer_id = ?', [id]);
-    if (rows.length === 0) {
-      return res.status(404).json({ message: 'Übung nicht gefunden' });
-    }
     res.json(rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
