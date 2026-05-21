@@ -145,10 +145,27 @@ Im Root-Verzeichnis liegt ein Bash-Skript `db_sync.sh`, welches genutzt wird, um
 ---
 
 ## 📝 Offene Baustellen (To-Do's)
-1. **Nutzerspezifische Übungen (User-Eigene Übungen)**: Die Möglichkeit für Nutzer, persönliche Übungen anzulegen, existiert im produktiven Stand noch gar nicht. Dies muss von Grund auf neu entwickelt werden (Backend-Routen, Controller, DB-Erweiterung sowie saubere Frontend-Komponenten).
+1. **Eigene Übungen — Erweiterung**: Basis-Feature ist implementiert (DB, API, UI unter `/test`). Offen: Bearbeiten/Löschen, Nutzung von `muskelgruppe`, feste Route und Navigation, vollständige Einbindung in Custom-Trainingspläne und Training-Workflows.
 2. **Barrierefreiheit**: Gezieltes Testing für Screenreader und Keyboard-Flows.
-3. **Routing Clean-Up**: Verbliebene temporäre Routen (wie z.B. `/test` in der `App.js`) prüfen und aufräumen.
+3. **Routing Clean-Up**: Temporäre Route `/test` und Dateiname `Test.jsx` in eine produktive Route/Komponente überführen (z. B. `/eigene-uebungen`).
 4. **Globales Layout-Refactoring (Variante B)**: Auslagerung von `NavBar` und `NavBarBot` in eine globale Layout-Komponente (mittels React Router `<Outlet />`). Da der `NavBarBot` pro Seite spezifische Funktionen (Buttons) anbietet, muss ein neuer React Context (z.B. `NavBarBotContext`) implementiert werden. Jede Unterseite aktualisiert darüber dynamisch die Props der globalen Bottom-Bar.
+
+### Datenbank: `nutzer_eigene_uebungen`
+
+```sql
+CREATE TABLE nutzer_eigene_uebungen (
+    id int AUTO_INCREMENT PRIMARY KEY,
+    nutzer_id int NOT NULL,
+    uebung_name VARCHAR(255) NOT NULL,
+    uebung_beschreibung TEXT,
+    muskelgruppe VARCHAR(255),
+    zielmuskel VARCHAR(255),
+    kategorie ENUM('Push', 'Pull', 'Beine'),
+    CONSTRAINT fk_nutzer FOREIGN KEY (nutzer_id) REFERENCES nutzer (id)
+);
+```
+
+*Hinweis:* `muskelgruppe` ist im Schema vorhanden, wird vom aktuellen Backend noch nicht befüllt.
 
 ---
 *Ende der Projektdokumentation*
