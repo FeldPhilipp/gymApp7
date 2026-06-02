@@ -47,7 +47,8 @@ exports.getUebungenByPlan = async (req, res) => {
 exports.getLetzteErgebnisse = async (req, res) => {
   try {
     const { uebungId } = req.params;
-    const { nutzerId } = req.query;
+    const { nutzerId, eigeneUebung } = req.query;
+    const eigeneUebungFlag = eigeneUebung ? parseInt(eigeneUebung, 10) : 0;
 
     const [rows] = await db.query(`
       SELECT 
@@ -59,10 +60,9 @@ exports.getLetzteErgebnisse = async (req, res) => {
         te.notizen
       FROM trainings_ergebnisse te
       JOIN trainings_sessions ts ON te.session_id = ts.id
-      WHERE te.uebung_id = ? AND ts.nutzer_id = ?
+      WHERE te.uebung_id = ? AND te.eigene_uebung = ? AND ts.nutzer_id = ?
       ORDER BY ts.datum DESC, te.erstellt_am DESC, te.satz_nummer ASC
-      LIMIT 15
-    `, [uebungId, nutzerId]);
+    `, [uebungId, eigeneUebungFlag, nutzerId]);
 
     res.json(rows);
   } catch (error) {
@@ -102,11 +102,12 @@ exports.createSession = async (req, res) => {
         e.satz_nummer,
         e.wiederholungen,
         e.gewicht_kg,
-        e.notizen
+        e.notizen,
+        e.eigene_uebung || 0
       ]);
 
       await db.query(
-        'INSERT INTO trainings_ergebnisse (session_id, uebung_id, satz_nummer, wiederholungen, gewicht_kg, notizen) VALUES ?',
+        'INSERT INTO trainings_ergebnisse (session_id, uebung_id, satz_nummer, wiederholungen, gewicht_kg, notizen, eigene_uebung) VALUES ?',
         [values]
       );
     }
@@ -170,13 +171,15 @@ exports.getUebungenFuerPlan = async (req, res) => {
           netu.reihenfolge,
           netu.empfohlene_saetze,
           netu.empfohlene_wiederholungen,
-          u.id as uebung_id,
-          u.name as uebung_name,
-          u.zielmuskel,
-          u.kategorie,
-          u.beschreibung
+          netu.eigene_uebung,
+          COALESCE(nu.uebung_name, u.name) as uebung_name,
+          COALESCE(nu.zielmuskel, u.zielmuskel) as zielmuskel,
+          COALESCE(nu.kategorie, u.kategorie) as kategorie,
+          COALESCE(nu.uebung_beschreibung, u.beschreibung) as beschreibung,
+          netu.uebung_id
         FROM nutzer_eigene_trainingsplan_uebungen netu
-        JOIN uebungen u ON netu.uebung_id = u.id
+        LEFT JOIN uebungen u ON netu.uebung_id = u.id AND (netu.eigene_uebung = 0 OR netu.eigene_uebung IS NULL)
+        LEFT JOIN nutzer_eigene_uebungen nu ON netu.uebung_id = nu.id AND netu.eigene_uebung = 1
         WHERE netu.eigener_trainingsplan_id = ?
         ORDER BY netu.reihenfolge
       `, [planId]);
@@ -253,6 +256,8 @@ exports.createSessionMitHistorie = async (req, res) => {
       uebungen_reihenfolge
     } = req.body;
 
+    // (debug logs removed)
+
     // Validierung des Plantyps
     const planTyp = trainingsplan_typ || 'standard';
     if (!['standard', 'custom'].includes(planTyp)) {
@@ -280,11 +285,14 @@ exports.createSessionMitHistorie = async (req, res) => {
         e.satz_nummer,
         e.wiederholungen,
         e.gewicht_kg,
-        e.notizen
+        e.notizen,
+        e.eigene_uebung || 0
       ]);
 
+      // (debug logs removed)
+
       await connection.query(
-        'INSERT INTO trainings_ergebnisse (session_id, uebung_id, satz_nummer, wiederholungen, gewicht_kg, notizen) VALUES ?',
+        'INSERT INTO trainings_ergebnisse (session_id, uebung_id, satz_nummer, wiederholungen, gewicht_kg, notizen, eigene_uebung) VALUES ?',
         [values]
       );
     }
@@ -517,7 +525,7 @@ exports.getSessionErgebnisse = async (req, res) => {
     let rows;
 
     if (trainingsplan_typ === 'custom') {
-      // Custom Plan - keine Historie-Tabelle verwenden
+      // Custom Plan - exercise source may be standard or user-defined; join accordingly
       [rows] = await db.query(`
         SELECT 
           te.id,
@@ -528,15 +536,18 @@ exports.getSessionErgebnisse = async (req, res) => {
           te.gewicht_kg,
           te.notizen,
           te.erstellt_am,
-          u.name as uebung_name,
-          u.zielmuskel,
-          u.kategorie,
-          netu.reihenfolge
+          COALESCE(nu.uebung_name, u.name) as uebung_name,
+          COALESCE(nu.zielmuskel, u.zielmuskel) as zielmuskel,
+          COALESCE(nu.kategorie, u.kategorie) as kategorie,
+          netu.reihenfolge,
+          te.eigene_uebung
         FROM trainings_ergebnisse te
-        JOIN uebungen u ON te.uebung_id = u.id
+        LEFT JOIN uebungen u ON te.uebung_id = u.id AND (te.eigene_uebung = 0 OR te.eigene_uebung IS NULL)
+        LEFT JOIN nutzer_eigene_uebungen nu ON te.uebung_id = nu.id AND te.eigene_uebung = 1
         LEFT JOIN nutzer_eigene_trainingsplan_uebungen netu 
           ON netu.eigener_trainingsplan_id = ?
           AND netu.uebung_id = te.uebung_id
+          AND netu.eigene_uebung = te.eigene_uebung
         WHERE te.session_id = ?
         ORDER BY COALESCE(netu.reihenfolge, 999), te.satz_nummer
       `, [custom_plan_id, sessionId]);
@@ -634,11 +645,12 @@ exports.updateSession = async (req, res) => {
         e.satz_nummer,
         e.wiederholungen,
         e.gewicht_kg,
-        e.notizen
+        e.notizen,
+        e.eigene_uebung || 0
       ]);
 
       await connection.query(
-        'INSERT INTO trainings_ergebnisse (session_id, uebung_id, satz_nummer, wiederholungen, gewicht_kg, notizen) VALUES ?',
+        'INSERT INTO trainings_ergebnisse (session_id, uebung_id, satz_nummer, wiederholungen, gewicht_kg, notizen, eigene_uebung) VALUES ?',
         [values]
       );
     }
@@ -663,17 +675,19 @@ exports.updateSession = async (req, res) => {
           'INSERT INTO nutzer_trainingsplan_historie (nutzer_id, trainingsplan_id, uebung_id, reihenfolge) VALUES ?',
           [historieValues]
         );
-      } else if (planTyp === 'custom') {
-        // Custom-Plan: Reihenfolge in nutzer_eigene_trainingsplan_uebungen aktualisieren
-        for (const uebung of uebungen_reihenfolge) {
-          await connection.query(
-            `UPDATE nutzer_eigene_trainingsplan_uebungen 
-             SET reihenfolge = ? 
-             WHERE eigener_trainingsplan_id = ? AND uebung_id = ?`,
-            [uebung.reihenfolge, trainingsplan_id, uebung.uebung_id]
-          );
+        } else if (planTyp === 'custom') {
+          // Custom-Plan: Reihenfolge in nutzer_eigene_trainingsplan_uebungen aktualisieren
+          for (const uebung of uebungen_reihenfolge) {
+            // uebung may include eigene_uebung flag — if not, default to 0
+            const eigeneFlag = uebung.eigene_uebung ? 1 : 0;
+            await connection.query(
+              `UPDATE nutzer_eigene_trainingsplan_uebungen 
+               SET reihenfolge = ? 
+               WHERE eigener_trainingsplan_id = ? AND uebung_id = ? AND eigene_uebung = ?`,
+              [uebung.reihenfolge, trainingsplan_id, uebung.uebung_id, eigeneFlag]
+            );
+          }
         }
-      }
     }
 
     await connection.commit();

@@ -64,8 +64,8 @@ export const TrainingApi = {
     getUebungenByPlan: (planId, nutzerId) =>
         api.get(`/training/plaene/${planId}/uebungen`, { params: { nutzerId } }),
 
-    getLetzteErgebnisse: (uebungId, nutzerId) =>
-        api.get(`/training/uebungen/${uebungId}/letzte`, { params: { nutzerId } }),
+    getLetzteErgebnisse: (uebungId, nutzerId, eigeneUebung = 0) =>
+        api.get(`/training/uebungen/${uebungId}/letzte`, { params: { nutzerId, eigeneUebung } }),
 
     createSession: (data) => api.post('/training/sessions', {
         ...data,
@@ -120,6 +120,7 @@ export const TrainingApi = {
 
     postCreateUserUebung: (data) =>
         api.post(`/uebungen/user-uebung`, data),
+
     getUebungenByUserId: (nutzerId) =>
         api.get(`/uebungen/user-uebungen/${nutzerId}`),
 };

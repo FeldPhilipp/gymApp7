@@ -5,7 +5,7 @@ import { darkTheme } from "../../theme/darkTheme";
 import { useNavigate } from "react-router-dom";
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 
-const NavBarBot = ({ mainBtnF, mainBtnTxt, sideBtn1Icon, sideBtn1F, sideBtn2Icon, sideBtn2F, sideBtn3Icon, sideBtn3F }) => {
+const NavBarBot = ({ mainBtnF, mainBtnTxt, mainBtnDisabled, sideBtn1Icon, sideBtn1F, sideBtn2Icon, sideBtn2F, sideBtn3Icon, sideBtn3F }) => {
 
     const navigate = useNavigate();
     const isMobile = useMediaQuery(darkTheme.breakpoints.down('md'));
@@ -90,6 +90,7 @@ const NavBarBot = ({ mainBtnF, mainBtnTxt, sideBtn1Icon, sideBtn1F, sideBtn2Icon
                 {mainBtnF && mainBtnTxt ? (
                     <IconButton
                         onClick={mainBtnF}
+                        disabled={mainBtnDisabled}
                         sx={{
                             background: 'linear-gradient(135deg, #1e40af 0%, #2563eb 50%, #3b82f6 100%)',
                             color: 'white',
@@ -105,6 +106,10 @@ const NavBarBot = ({ mainBtnF, mainBtnTxt, sideBtn1Icon, sideBtn1F, sideBtn2Icon
                                 transform: 'scale(1.05)',
                                 boxShadow: '0 6px 16px rgba(30, 64, 175, 0.5)',
                             },
+                            '&:disabled': {
+                                opacity: 0.3,
+                                background: 'rgba(59, 130, 246, 0.4)'
+                            }
                         }}
                     >
                         {mainBtnTxt}

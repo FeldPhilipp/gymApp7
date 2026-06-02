@@ -22,9 +22,16 @@
 - ✅ **Social/Echtzeit**: Live-Kommentare in "Termin-Rooms" über WebSockets (Socket.io).
 - ✅ **Tracking**: Gewichtstracking, Trainingshistorie.
 - ✅ **Admin**: Admin-Panel zur Nutzer- und Datenverwaltung.
+- 🔧 **Aktuelle Bugfixes**: Fokus auf Trainingsergebnisse-Workflow (`Trainingsergebnisse.jsx`), um Ladezustände zu korrigieren, doppeltes Speichern zu verhindern und die Session nach Save zu beenden.
+- 🔧 **Route-Fixes**: `uebungenController.getUebungByUserId` und `uebungenRoutes` wurden angepasst, um `GET /api/uebungen/user-uebungen/:id` stabil auszuliefern.
+- 🔧 **DB-Schema-Deployment**: Strukturänderungen für `eigene_uebung`-Flag wurden auf dem vServer synchronisiert.
+ - 🔧 **Mobile-Scroll-Fix**: `CustomTrainingsplan.jsx` nutzt nun `touchAction: 'pan-y'` auf Plan-Karten, damit vertikales Scrollen auf Mobilgeräten funktioniert, ohne Drag-and-Drop zu beeinträchtigen.
 
 ### Offene Baustellen & To-Do's
 - **Eigene Übungen ausbauen**: Bearbeiten/Löschen, DB-Feld `muskelgruppe` nutzen, feste Route statt `/test`, Einbindung in Custom-Trainingspläne und Training-Flows.
+- **Backend-Neustart sicherstellen**: Nach Änderungen in `uebungenController.js` und `uebungenRoutes.js` muss der Backend-Server neu gestartet werden, damit die aktualisierte API verfügbar ist.
+- **Custom-Trainingsplan prüfen**: Verifizieren, dass `CustomTrainingsplan.jsx` aktuelle eigene Übungen korrekt lädt und dass `selectedPlanType`/`source` beim Planwechsel sauber funktionieren.
+- **Speicher-Workflow validieren**: Kontrolle des `loading`- und `disabled`-State von Save-Buttons (Desktop + Mobile) nach dem `Trainingsergebnisse.jsx`-Fix, um doppelte Einträge zu verhindern.
 - Clean-Up der Test-Routen (`/test` in `App.js`, Komponente `Test.jsx` umbenennen).
 - Optimierung der **Barrierefreiheit (Accessibility)**: MUI liefert eine Basis, gezielte `aria`-Attribute müssen noch erweitert werden.
 - **Globales Frontend Layout-Refactoring**: Einführung eines `NavBarBotContext`, um `NavBar` und `NavBarBot` als globale Layout-Wrapper in `App.js` auszulagern, ohne dass der Bottom-Nav seine seitenspezifischen Callbacks für Buttons verliert.
@@ -40,8 +47,7 @@
 ### Backend (`/backend`)
 - `server.js`: Der Entry-Point für Express und Socket.io. Konfiguriert CORS, globale Middleware und Socket.io Events (`join-termin`, `leave-termin`).
 - `routes/`: Definiert die API-Endpoints (z.B. `nutzerRoutes.js`, `uebungenRoutes.js`, `trainingsplanRoutes.js`, `gruppenRoutes.js`).
-- `controllers/uebungenController.js`: Standard-Übungen plus `createUserUebung` / `getUebungByUserId` für `nutzer_eigene_uebungen`.
-- `controllers/`: Enthält die Business-Logik für die jeweiligen Routen.
+- `controllers/`: Business-Logik; für eigene Übungen relevant: `uebungenController.js` (`createUserUebung`, `getUebungByUserId`).
 - `middleware/authMiddlware.js`: Schützt Routen durch JWT-Validierung.
 - `package.json`: Abhängigkeiten (Express, MySQL2, Socket.io, JWT, bcrypt).
 

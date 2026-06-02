@@ -41,20 +41,24 @@ exports.getEigenerTrainingsplanById = async (req, res) => {
     }
 
     // Übungen des Plans
+    // Wenn die übung eine eigene Nutzerübung ist, liefern wir die Felder aus
+    // nutzer_eigene_uebungen, andernfalls aus der Standard-Tabelle uebungen.
     const [uebungen] = await db.query(`
       SELECT 
         neu.id,
         neu.uebung_id,
-        u.name as uebung_name,
-        u.zielmuskel,
-        u.kategorie,
-        u.beschreibung,
+        COALESCE(ue.uebung_name, u.name) as uebung_name,
+        COALESCE(ue.zielmuskel, u.zielmuskel) as zielmuskel,
+        COALESCE(ue.kategorie, u.kategorie) as kategorie,
+        COALESCE(ue.uebung_beschreibung, u.beschreibung) as beschreibung,
         neu.reihenfolge,
         neu.empfohlene_saetze,
         neu.empfohlene_wiederholungen,
-        neu.notizen
+        neu.notizen,
+        neu.eigene_uebung
       FROM nutzer_eigene_trainingsplan_uebungen neu
-      JOIN uebungen u ON neu.uebung_id = u.id
+      LEFT JOIN uebungen u ON neu.uebung_id = u.id AND (neu.eigene_uebung = 0 OR neu.eigene_uebung IS NULL)
+      LEFT JOIN nutzer_eigene_uebungen ue ON neu.uebung_id = ue.id AND neu.eigene_uebung = 1
       WHERE neu.eigener_trainingsplan_id = ?
       ORDER BY neu.reihenfolge ASC
     `, [planId]);
@@ -149,7 +153,7 @@ exports.deleteEigenerTrainingsplan = async (req, res) => {
 // Übung zum Plan hinzufügen
 exports.addUebungToPlan = async (req, res) => {
   try {
-    const { eigener_trainingsplan_id, uebung_id, reihenfolge, notizen, nutzer_id } = req.body;
+    const { eigener_trainingsplan_id, uebung_id, reihenfolge, notizen, nutzer_id, eigene_uebung = 0 } = req.body;
 
     // Prüfen ob Plan dem Nutzer gehört
     const [plan] = await db.query(
@@ -162,8 +166,8 @@ exports.addUebungToPlan = async (req, res) => {
     }
 
     const [result] = await db.query(
-      'INSERT INTO nutzer_eigene_trainingsplan_uebungen (eigener_trainingsplan_id, uebung_id, reihenfolge, notizen) VALUES (?, ?, ?, ?)',
-      [eigener_trainingsplan_id, uebung_id, reihenfolge, notizen]
+      'INSERT INTO nutzer_eigene_trainingsplan_uebungen (eigener_trainingsplan_id, uebung_id, reihenfolge, notizen, eigene_uebung) VALUES (?, ?, ?, ?, ?)',
+      [eigener_trainingsplan_id, uebung_id, reihenfolge, notizen, eigene_uebung ? 1 : 0]
     );
 
     res.status(201).json({
@@ -207,7 +211,7 @@ exports.deleteUebungFromPlan = async (req, res) => {
 exports.updateUebungInPlan = async (req, res) => {
   try {
     const { uebungId } = req.params;
-    const { reihenfolge, empfohlene_saetze, empfohlene_wiederholungen, notizen, nutzer_id } = req.body;
+    const { reihenfolge, empfohlene_saetze, empfohlene_wiederholungen, notizen, nutzer_id, eigene_uebung } = req.body;
 
     // Prüfen ob Übung zu einem Plan des Nutzers gehört
     const [uebung] = await db.query(`
@@ -222,8 +226,8 @@ exports.updateUebungInPlan = async (req, res) => {
     }
 
     await db.query(
-      'UPDATE nutzer_eigene_trainingsplan_uebungen SET reihenfolge = ?, empfohlene_saetze = ?, empfohlene_wiederholungen = ?, notizen = ? WHERE id = ?',
-      [reihenfolge, empfohlene_saetze, empfohlene_wiederholungen, notizen, uebungId]
+      'UPDATE nutzer_eigene_trainingsplan_uebungen SET reihenfolge = ?, empfohlene_saetze = ?, empfohlene_wiederholungen = ?, notizen = ?, eigene_uebung = ? WHERE id = ?',
+      [reihenfolge, empfohlene_saetze, empfohlene_wiederholungen, notizen, eigene_uebung ? 1 : 0, uebungId]
     );
 
     res.json({ message: 'Übung aktualisiert' });

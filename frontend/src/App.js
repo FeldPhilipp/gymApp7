@@ -28,12 +28,13 @@ import GewichtTrackingPage from './components/pages/features/GewichtTrackingPage
 import { DrawerProvider } from './components/context/DrawerContext';
 import AllHighscores from './components/pages/features/AllHighscores';
 import Kommentare from './components/shared/Kommentare';
-import { 
+import {
   ProtectedGroupRoute,
   ProtectedUserRoute,
   ProtectedTrainingRoute,
   ProtectedKommentarRoute
 } from './components/auth/ProtectedRouteWrappers';
+import UserUebung from './components/pages/user/UserUebung';
 
 function App() {
 
@@ -242,8 +243,8 @@ function App() {
                 <Route path='/reset-password' element={<ResetPassword />} />
                 <Route path='/register' element={<RegisterDark />} />
                 <Route path='/dashboard' element={<HomeDark />} />
-                <Route path='/addTraining' element={<Trainingsergebnisse />} />
-                <Route path='/customTraining' element={<CustomTrainingsplanManager />} />
+                <Route path='/addTraining' element={<ProtectedUserRoute><Trainingsergebnisse /></ProtectedUserRoute>} />
+                <Route path='/customTraining' element={<ProtectedUserRoute><CustomTrainingsplanManager /></ProtectedUserRoute>} />
                 <Route path='/gruppen' element={<GruppenUebersicht />} />
                 <Route path='/gruppen/:gruppeId' element={<ProtectedGroupRoute><GruppenDetail /></ProtectedGroupRoute>} />
                 <Route path='/einladungen' element={<Einladungen />} />
@@ -257,6 +258,7 @@ function App() {
                 <Route path='/admin' element={<AdminPanel />} />
                 <Route path='/tracker' element={<GewichtTrackingPage />} />
                 <Route path='/allHighscores/:gruppeId' element={<ProtectedGroupRoute><AllHighscores /></ProtectedGroupRoute>} />
+                <Route path='/user/uebung-erstellen' element={<ProtectedUserRoute><UserUebung /></ProtectedUserRoute>} />
               </Routes>
             </BrowserRouter>
           </DrawerProvider>

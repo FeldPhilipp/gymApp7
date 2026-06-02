@@ -46,7 +46,6 @@ const ZIELMUSKEL_OPTIONS = [
     { value: "Trizeps", label: "Trizeps" },
     { value: "Beine", label: "Beine" },
     { value: "Bauch", label: "Bauch" },
-    { value: "Gesaess", label: "Gesäß" },
 ];
 
 const KATEGORIE_OPTIONS = [

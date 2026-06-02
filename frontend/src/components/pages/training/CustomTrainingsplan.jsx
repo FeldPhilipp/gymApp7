@@ -81,7 +81,7 @@ function MobileFriendlyTooltip({ title, children }) {
 }
 
 // ==================== Sortierbare Trainingsplan-Card ====================
-function TrainingsplanCard({ plan, onEdit, onDelete, onSelect }) {
+function TrainingsplanCard({ plan, onSelect }) {
     return (
         <Card
             sx={{
@@ -112,22 +112,6 @@ function TrainingsplanCard({ plan, onEdit, onDelete, onSelect }) {
                             Erstellt: {new Date(plan.erstellt_am).toLocaleDateString('de-DE')}
                         </Typography>
                     </Box>
-                    <Box display="flex" gap={0.5} sx={{ ml: 2 }}>
-                        <IconButton
-                            onClick={(e) => { e.stopPropagation(); onEdit(); }}
-                            size="small"
-                            color="warning"
-                        >
-                            <EditIcon />
-                        </IconButton>
-                        <IconButton
-                            onClick={(e) => { e.stopPropagation(); onDelete(); }}
-                            size="small"
-                            color="error"
-                        >
-                            <DeleteIcon />
-                        </IconButton>
-                    </Box>
                 </Box>
             </CardContent>
         </Card>
@@ -154,7 +138,7 @@ function PlanUebungCard({ uebung, onEdit, onDelete, isDragging }) {
                 bgcolor: 'background.paper',
                 border: '1px solid',
                 borderColor: 'divider',
-                touchAction: 'none',
+                touchAction: 'pan-y',
             }}
         >
             <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
@@ -220,6 +204,7 @@ function CustomTrainingsplanManager() {
     const [selectedPlan, setSelectedPlan] = useState(null);
     const [uebungenInPlan, setUebungenInPlan] = useState([]);
     const [alleUebungen, setAlleUebungen] = useState([]);
+    const [customUebungen, setCustomUebungen] = useState([]);
     const [activeId, setActiveId] = useState(null);
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });
@@ -250,6 +235,7 @@ function CustomTrainingsplanManager() {
         if (NUTZER_ID) {
             loadTrainingsplaene();
             loadVerfuegbareUebungen();
+            loadCustomUebungen();
         }
     }, [NUTZER_ID]);
 
@@ -270,6 +256,15 @@ function CustomTrainingsplanManager() {
             setAlleUebungen(response.data);
         } catch (err) {
             console.error('Fehler beim Laden der Übungen:', err);
+        }
+    };
+
+    const loadCustomUebungen = async () => {
+        try {
+            const response = await TrainingApi.getUebungenByUserId(NUTZER_ID);
+            setCustomUebungen(response.data);
+        } catch (err) {
+            console.error('Fehler beim Laden eigener Übungen:', err);
         }
     };
 
@@ -298,7 +293,7 @@ function CustomTrainingsplanManager() {
             await loadTrainingsplaene();
             setSelectedPlan(null);
             setMessage({ type: "success", text: "Trainingsplan gelöscht" });
-            setTimeout(() => setMessage({type: "", text: ""}), 3000);
+            setTimeout(() => setMessage({ type: "", text: "" }), 3000);
         } catch (err) {
             setMessage({ type: "error", text: err });
             console.error(err);
@@ -312,7 +307,7 @@ function CustomTrainingsplanManager() {
             await TrainingApi.deleteCustomPlanUebung(uebungId, { nutzer_id: NUTZER_ID });
             await loadPlanDetails(selectedPlan.id);
             setMessage({ type: "success", text: "Übung gelöscht" });
-            setTimeout(() => setMessage({type: "", text: ""}), 3000);
+            setTimeout(() => setMessage({ type: "", text: "" }), 3000);
         }
         catch (err) {
             setMessage({ type: "error", text: 'Übung konnte nicht gelöscht werden' });
@@ -329,12 +324,16 @@ function CustomTrainingsplanManager() {
                 await TrainingApi.updateCustomPlan(selectedPlan.id, { nutzer_id: NUTZER_ID, name: formData.name, beschreibung: formData.beschreibung });
                 await loadPlanDetails(selectedPlan.id);
             } else if (dialogType === 'addUebung') {
+                // support options that include uebung_id for custom and standard entries
+                const selected = formData.selectedUebung;
+                const uebungId = selected?.uebung_id ?? (typeof selected?.id === 'string' ? parseInt(selected.id.split('-').pop(), 10) : selected?.id);
                 await TrainingApi.addUebungToPlan({
                     eigener_trainingsplan_id: selectedPlan.id,
-                    uebung_id: formData.selectedUebung.id,
+                    uebung_id: uebungId,
                     reihenfolge: uebungenInPlan.length + 1,
                     notizen: formData.notizen || null,
                     nutzer_id: NUTZER_ID,
+                    eigene_uebung: selected?.eigene_uebung ? 1 : 0,
                 });
                 await loadPlanDetails(selectedPlan.id);
             } else if (dialogType === 'editUebung') {
@@ -347,7 +346,7 @@ function CustomTrainingsplanManager() {
             }
 
             setMessage({ type: "success", text: "Hat geklpatt" });
-            setTimeout(() => setMessage({type: "", text: ""}), 3000);
+            setTimeout(() => setMessage({ type: "", text: "" }), 3000);
             setDialogOpen(false);
         } catch (err) {
             setMessage({ type: "error", text: err.response?.data?.error || err.message || 'Ein Fehler ist aufgetreten' });
@@ -368,7 +367,7 @@ function CustomTrainingsplanManager() {
                     TrainingApi.updateUebungInPlan(uebung.id, { ...uebung, reihenfolge: index + 1, nutzer_id: NUTZER_ID })
                 ));
                 setMessage({ type: "success", text: 'Reihenfolge gespeichert' });
-                setTimeout(() => setMessage({type: "", text: ""}), 3000);
+                setTimeout(() => setMessage({ type: "", text: "" }), 3000);
             } catch (err) {
                 setMessage({ type: "error", text: 'Fehler beim Speichern der Reihenfolge' });
                 console.error(err);
@@ -388,6 +387,11 @@ function CustomTrainingsplanManager() {
         .filter(u => !filterZielmuskel || u.zielmuskel === filterZielmuskel)
         .sort((a, b) => a.name.localeCompare(b.name));
 
+    const gefilterteCustomUebungen = customUebungen
+        .filter(u => !filterKategorie || u.kategorie === filterKategorie)
+        .filter(u => !filterZielmuskel || u.zielmuskel === filterZielmuskel)
+        .sort((a, b) => (a.uebung_name || '').localeCompare(b.uebung_name || ''));
+
     // Einzigartige Kategorien und Zielmuskeln für Filter-Dropdowns
     const kategorien = [...new Set(alleUebungen.map(u => u.kategorie))].sort();
     const zielmuskeln = [...new Set(alleUebungen.map(u => u.zielmuskel))].sort();
@@ -406,7 +410,7 @@ function CustomTrainingsplanManager() {
         <>
             <NavBar />
             <ThemeProvider theme={darkTheme}>
-                <Box sx={{ bgcolor: 'background.default', minHeight: '100vh', pb: 4 }}>
+                <Box sx={{ bgcolor: 'background.default', minHeight: '100vh', pb: 8 }}>
                     <Container maxWidth="lg" sx={{ pt: { xs: 2, md: 4 } }}>
                         {!isMobile && (
                             selectedPlan ? (
@@ -478,8 +482,6 @@ function CustomTrainingsplanManager() {
                                                 key={plan.id}
                                                 plan={plan}
                                                 onSelect={() => loadPlanDetails(plan.id)}
-                                                onEdit={() => { setSelectedPlan(plan); handleEditPlan(); }}
-                                                onDelete={() => { setSelectedPlan(plan); handleDeletePlan(); }}
                                             />
                                         ))
                                     )}
@@ -490,13 +492,10 @@ function CustomTrainingsplanManager() {
 
                                 <HeaderCard title={selectedPlan.name} subtitle={selectedPlan.beschreibung} />
 
-                                <Box sx={{ mb: 2 }}>
-                                    {!isMobile && (
-                                        <Button onClick={handleAddUebung} variant="outlined" startIcon={<EditIcon />}>Übung hinzufügen</Button>
-                                    )}
-
-                                    <Button onClick={handleEditPlan} variant="outlined" color="warning" startIcon={<EditIcon />}>Bearbeiten</Button>
-                                    <Button onClick={handleDeletePlan} variant="outlined" color="error" startIcon={<DeleteIcon />}>Löschen</Button>
+                                <Box sx={{ mb: 2, display: "flex", justifyContent: "space-around" }}>
+                                    <Button onClick={handleAddUebung} variant="outlined"><AddIcon /></Button>
+                                    <Button onClick={handleEditPlan} variant="outlined" color="warning"><EditIcon /></Button>
+                                    <Button onClick={handleDeletePlan} variant="outlined" color="error"><DeleteIcon /></Button>
                                 </Box>
 
                                 {message.status === "error" || message.status === "success" && (
@@ -514,8 +513,14 @@ function CustomTrainingsplanManager() {
                                     : uebungenInPlan.length === 0 ? (
                                         <Typography color="text.secondary">Keine Übungen im Plan</Typography>
                                     ) : (
-                                        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={(event) => setActiveId(event.active.id)} onDragEnd={handleDragEnd}>
-                                            <SortableContext items={uebungenInPlan.map(u => u.id)} strategy={verticalListSortingStrategy}>
+                                        <DndContext 
+                                        sensors={sensors} 
+                                        collisionDetection={closestCenter} 
+                                        onDragStart={(event) => setActiveId(event.active.id)} 
+                                        onDragEnd={handleDragEnd}>
+                                            <SortableContext 
+                                            items={uebungenInPlan.map(u => u.id)} 
+                                            strategy={verticalListSortingStrategy}>
                                                 {uebungenInPlan.map((uebung) => (
                                                     <PlanUebungCard
                                                         key={uebung.id}
@@ -593,7 +598,24 @@ function CustomTrainingsplanManager() {
                                         </Box>
 
                                         <Autocomplete
-                                            options={gefilterteUebungen}
+                                            options={[
+                                                ...gefilterteUebungen.map(u => ({
+                                                    id: `standard-${u.id}`,
+                                                    uebung_id: u.id,
+                                                    name: u.name,
+                                                    zielmuskel: u.zielmuskel,
+                                                    kategorie: u.kategorie,
+                                                    eigene_uebung: 0
+                                                })),
+                                                ...gefilterteCustomUebungen.map(u => ({
+                                                    id: `custom-${u.id}`,
+                                                    uebung_id: u.id,
+                                                    name: u.uebung_name,
+                                                    zielmuskel: u.zielmuskel,
+                                                    kategorie: u.kategorie,
+                                                    eigene_uebung: 1
+                                                }))
+                                            ]}
                                             getOptionLabel={(option) => `${option.name} (${option.zielmuskel})`}
                                             value={selectedUebung}
                                             onChange={(e, newValue) => {
@@ -666,7 +688,11 @@ function CustomTrainingsplanManager() {
                     </Dialog>
                 </Box>
             </ThemeProvider >
-            <NavBarBot mainBtnF={handleAddUebung} mainBtnTxt={<AddIcon />} sideBtn1F={selectedPlan && (closeSelectedPlan)} sideBtn1Icon={<ArrowBackIcon />} />
+            <NavBarBot
+                // mainBtnF={handleAddUebung} 
+                // mainBtnTxt={<AddIcon />} 
+                sideBtn1F={selectedPlan && (closeSelectedPlan)}
+                sideBtn1Icon={<ArrowBackIcon />} />
         </>
     );
 }

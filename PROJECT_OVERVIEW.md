@@ -4,6 +4,13 @@
 **Status**: 🟢 Aktive Entwicklung
 **Frameworks**: React 19, Express.js, Socket.io, MySQL
 
+**Aktueller Stand**:
+- Fokus auf Frontend-Bugfixes in `frontend/src/components/pages/training/Trainingsergebnisse.jsx`: Ladezustand nach dem Speichern, doppeltes Speichern verhindern und Temp-Session korrekt zurücksetzen.
+- Backend-Fix für `GET /api/uebungen/user-uebungen/:id` in `backend/controllers/uebungenController.js` und abgestimmte Route in `backend/routes/uebungenRoutes.js`.
+- Remote DB-Schema-Updates für `eigene_uebung`-Flag in `trainings_ergebnisse` und `nutzer_eigene_trainingsplan_uebungen` bereits auf dem vServer deployed.
+- Frontend `npm run build` erfolgreich; Backend-Neustart ist nach Controller-Änderungen empfohlen.
+ - Mobile-Scroll-Fix: `frontend/src/components/pages/training/CustomTrainingsplan.jsx` verwendet jetzt `touchAction: 'pan-y'` auf Plan-Karten, sodass vertikales Scrollen auf Touch-Geräten möglich bleibt, während Drag-and-Drop erhalten bleibt.
+
 ---
 
 ## 📋 Inhaltsverzeichnis
@@ -149,6 +156,9 @@ Im Root-Verzeichnis liegt ein Bash-Skript `db_sync.sh`, welches genutzt wird, um
 2. **Barrierefreiheit**: Gezieltes Testing für Screenreader und Keyboard-Flows.
 3. **Routing Clean-Up**: Temporäre Route `/test` und Dateiname `Test.jsx` in eine produktive Route/Komponente überführen (z. B. `/eigene-uebungen`).
 4. **Globales Layout-Refactoring (Variante B)**: Auslagerung von `NavBar` und `NavBarBot` in eine globale Layout-Komponente (mittels React Router `<Outlet />`). Da der `NavBarBot` pro Seite spezifische Funktionen (Buttons) anbietet, muss ein neuer React Context (z.B. `NavBarBotContext`) implementiert werden. Jede Unterseite aktualisiert darüber dynamisch die Props der globalen Bottom-Bar.
+5. **Backend-Neustart nach Controller-Änderungen**: Nach Anpassung von `uebungenController.js` und `uebungenRoutes.js` ist ein Restart des Backend-Dienstes erforderlich, damit die API-Änderungen greifen.
+6. **Custom-Trainingsplan-Verifikation**: Sicherstellen, dass `CustomTrainingsplan.jsx` und `Trainingsergebnisse.jsx` eigene Übungen/plans korrekt laden und anzeigen, insbesondere wenn `selectedPlanType` und `source` im UI gewechselt werden.
+7. **Speicher-Workflow prüfen**: Überprüfung des `loading`- und `disabled`-States für den Save-Button auf Mobile und Desktop, um Doppel-Speichern beim Trainingsspeichern zu verhindern.
 
 ### Datenbank: `nutzer_eigene_uebungen`
 
