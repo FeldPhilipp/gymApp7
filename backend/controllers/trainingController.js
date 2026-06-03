@@ -675,19 +675,19 @@ exports.updateSession = async (req, res) => {
           'INSERT INTO nutzer_trainingsplan_historie (nutzer_id, trainingsplan_id, uebung_id, reihenfolge) VALUES ?',
           [historieValues]
         );
-        } else if (planTyp === 'custom') {
-          // Custom-Plan: Reihenfolge in nutzer_eigene_trainingsplan_uebungen aktualisieren
-          for (const uebung of uebungen_reihenfolge) {
-            // uebung may include eigene_uebung flag — if not, default to 0
-            const eigeneFlag = uebung.eigene_uebung ? 1 : 0;
-            await connection.query(
-              `UPDATE nutzer_eigene_trainingsplan_uebungen 
+      } else if (planTyp === 'custom') {
+        // Custom-Plan: Reihenfolge in nutzer_eigene_trainingsplan_uebungen aktualisieren
+        for (const uebung of uebungen_reihenfolge) {
+          // uebung may include eigene_uebung flag — if not, default to 0
+          const eigeneFlag = uebung.eigene_uebung ? 1 : 0;
+          await connection.query(
+            `UPDATE nutzer_eigene_trainingsplan_uebungen 
                SET reihenfolge = ? 
                WHERE eigener_trainingsplan_id = ? AND uebung_id = ? AND eigene_uebung = ?`,
-              [uebung.reihenfolge, trainingsplan_id, uebung.uebung_id, eigeneFlag]
-            );
-          }
+            [uebung.reihenfolge, trainingsplan_id, uebung.uebung_id, eigeneFlag]
+          );
         }
+      }
     }
 
     await connection.commit();

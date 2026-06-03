@@ -368,6 +368,7 @@ function Trainingsergebnisse() {
   const [timerStart, setTimerStart] = useState(null);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
+  const [saveConfirmOpen, setSaveConfirmOpen] = useState(false);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editIndex, setEditIndex] = useState(null);
@@ -454,8 +455,8 @@ function Trainingsergebnisse() {
       try {
         const response = await TestApi.getAllUebungen();
         const customUebungen = await TrainingApi.getUebungenByUserId(nutzerId);
-        setCustomUebungen(customUebungen.data);
         setAlleUebungen(response.data);
+        setCustomUebungen(customUebungen.data);
       } catch (err) {
         console.error('Fehler beim Laden der Übungen:', err);
       } finally {
@@ -524,11 +525,32 @@ function Trainingsergebnisse() {
           setSelectedPlanType(trainingsplan_typ);
 
           if (gewaehlte_uebungen && gewaehlte_uebungen.length > 0) {
-            setGewaehlteUebungen(gewaehlte_uebungen.map((u, index) => {
-              const source = u.source || (saved.trainingsplan_typ === 'custom' ? 'custom' : u.uiId?.startsWith('custom-') ? 'custom' : 'standard');
-              return createExerciseItem(u, source, index);
-            }));
-            setErgebnisse(ergebnisse || {});
+
+            // uiIds frisch generieren, damit veraltete Cache-Einträge automatisch geheilt werden
+            const uebungenMitNeuenIds = gewaehlte_uebungen.map((u, index) => {
+              const source = u.source || 'standard';
+              const uebungId = u.uebung_id || u.id;
+              const freshUiId = `${source}-${uebungId}-${index}`;
+              return { alte_uiId: u.uiId, neue_uiId: freshUiId, u, source, index };
+            });
+
+            const neueMappedUebungen = uebungenMitNeuenIds.map(({ u, source, index, neue_uiId }) =>
+              createExerciseItem({ ...u, uiId: neue_uiId }, source, index)
+            );
+
+            // Ergebnisse-Keys auf neue uiIds umschreiben
+            const neueErgebnisse = {};
+            uebungenMitNeuenIds.forEach(({ alte_uiId, neue_uiId }) => {
+              if (ergebnisse?.[alte_uiId]) {
+                neueErgebnisse[neue_uiId] = ergebnisse[alte_uiId];
+              } else if (ergebnisse?.[neue_uiId]) {
+                neueErgebnisse[neue_uiId] = ergebnisse[neue_uiId];
+              }
+            });
+
+            setGewaehlteUebungen(neueMappedUebungen);
+            setErgebnisse(neueErgebnisse);
+
             // Timer wiederherstellen
             if (timer_start) {
               const now = new Date().getTime();
@@ -660,14 +682,18 @@ function Trainingsergebnisse() {
         const response = await TrainingApi.getCustomPlanUebungen(planId, nutzer.id);
         const { uebungen } = response.data;
 
-        uebungenMitId = uebungen.map((u, index) => createExerciseItem({
-          uebung_id: u.uebung_id,
-          name: u.uebung_name,
-          zielmuskel: u.zielmuskel,
-          kategorie: u.kategorie,
-          beschreibung: u.beschreibung,
-          empfohlene_saetze: u.empfohlene_saetze || 3
-        }, 'custom', index));
+        uebungenMitId = uebungen.map((u, index) => {
+          const uebungSource = u.eigene_uebung === 1 ? 'custom' : 'standard';
+
+          return createExerciseItem({
+            uebung_id: u.uebung_id,
+            name: u.uebung_name,
+            zielmuskel: u.zielmuskel,
+            kategorie: u.kategorie,
+            beschreibung: u.beschreibung,
+            empfohlene_saetze: u.empfohlene_saetze || 3
+          }, uebungSource, index);
+        });
 
         initialErgebnisse = {};
         uebungenMitId.forEach(item => {
@@ -726,11 +752,11 @@ function Trainingsergebnisse() {
       const updated = [...gewaehlteUebungen];
       updated[editIndex] = {
         ...selectedUebung,
-        source: selectedUebung.source || 'custom'
+        source: selectedUebung.source || 'standard'
       };
       setGewaehlteUebungen(updated);
     } else {
-      const source = selectedUebung.source || 'custom';
+      const source = selectedUebung.source || 'standard';
       const newItem = createExerciseItem({ ...selectedUebung, source }, source, gewaehlteUebungen.length);
       setGewaehlteUebungen([...gewaehlteUebungen, newItem]);
       setErgebnisse(prev => ({
@@ -801,6 +827,15 @@ function Trainingsergebnisse() {
   };
 
   // ============ TRAINING SPEICHERN (Temp-Session danach löschen) ============
+
+  const handleSaveClick = () => {
+    setSaveConfirmOpen(true);
+  };
+
+  const handleSaveConfirm = async () => {
+    setSaveConfirmOpen(false);
+    await handleSave();
+  };
 
   const handleSave = async () => {
     setLoading(true);
@@ -1159,7 +1194,7 @@ function Trainingsergebnisse() {
                     {!isMobile && (
                       <Grid size={{ xs: 12, sm: 12 }} sx={{ pb: "15px" }}>
                         <Button
-                          onClick={handleSave}
+                          onClick={handleSaveClick}
                           variant="contained"
                           size="large"
                           fullWidth
@@ -1333,9 +1368,34 @@ function Trainingsergebnisse() {
             </>
           )}
         </Box>
+        <Dialog open={saveConfirmOpen} onClose={() => setSaveConfirmOpen(false)}>
+          <DialogTitle>Training speichern?</DialogTitle>
+          <DialogContent>
+            <Typography>
+              Möchtest du dein Training wirklich speichern?
+            </Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setSaveConfirmOpen(false)}>
+              Abbrechen
+            </Button>
+            <Button
+              onClick={handleSaveConfirm}
+              variant="contained"
+              sx={{
+                background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)',
+                borderRadius: '8px',
+                textTransform: 'none',
+                fontWeight: 600,
+              }}
+            >
+              Speichern
+            </Button>
+          </DialogActions>
+        </Dialog>
       </ThemeProvider >
       <NavBarBot
-        mainBtnF={handleSave}
+        mainBtnF={handleSaveClick}
         mainBtnTxt={"Speichern"}
         mainBtnDisabled={loading || !hatEingaben()}
         sideBtn3Icon={<TimerDisplay />}
