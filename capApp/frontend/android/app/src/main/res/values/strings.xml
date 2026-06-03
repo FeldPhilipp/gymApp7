@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">FiTra</string>
+    <string name="title_activity_main">FiTra</string>
+    <string name="package_name">de.akkkker.fitra</string>
+    <string name="custom_url_scheme">de.akkkker.fitra</string>
+</resources>
