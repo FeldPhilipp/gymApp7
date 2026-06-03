@@ -96,6 +96,7 @@ function UebungCard({
   const [expanded, setExpanded] = useState(false);
   const [expandedHistory, setExpandedHistory] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [countDS, setCountDS] = useState([]);
 
   const {
     attributes,
@@ -134,6 +135,28 @@ function UebungCard({
   const saetze = Array.isArray(ergebnisse?.saetze) ? ergebnisse.saetze : [];
   const sortedSessions = Object.values(groupedBySession)
     .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+  const addDropSatz = (uId, source) => {
+    setCountDS(prev => {
+      const safePrev = Array.isArray(prev) ? prev : [];
+      const existingForUid = safePrev.filter(item => item.uId === uId);
+      const nextDs = existingForUid.length + 1;
+      return [...safePrev, { uId, source, ds: nextDs, kg: 0, wdh: 0 }];
+    });
+  };
+
+  useEffect(() => { console.log(countDS) }, [countDS]);
+
+  // Für eingaben beim Dropsatz
+  const updateDropSatz = (uId, ds, field, value) => {
+    setCountDS(prev =>
+      prev.map(item =>
+        item.uId === uId && item.ds === ds
+          ? { ...item, [field]: value }
+          : item
+      )
+    );
+  };
 
   return (
     <Card
@@ -338,6 +361,52 @@ function UebungCard({
                 Keine Sätze zum Eintragen verfügbar.
               </Typography>
             )}
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Dropsätze
+              </Typography>
+              {countDS.length > 0 && countDS.filter((d) => d.uId === uebung.id).map((ds, idx) => (
+                <Grid container spacing={2} key={idx}>
+                  <Grid size={{ xs: 6 }}>
+                    <TextField
+                      label="Gewicht (kg)"
+                      type="number"
+                      slotProps={{
+                        htmlInput: {
+                          inputMode: 'decimal',
+                          pattern: '[0-9.]*',
+                        },
+                      }}
+                      size="small"
+                      fullWidth
+                      value={ds.kg}
+                      onChange={(e) => updateDropSatz(ds.uId, ds.ds, 'kg', e.target.value)}
+                      inputProps={{ step: "0.5" }}
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 6 }}>
+                    <TextField
+                      label="Wiederholungen"
+                      type="number"
+                      slotProps={{
+                        htmlInput: {
+                          inputMode: 'decimal',
+                          pattern: '[0-9.]*',
+                        },
+                      }}
+                      size="small"
+                      fullWidth
+                      value={ds.wdh}
+                      onChange={(e) => updateDropSatz(ds.uId, ds.ds, 'wdh', e.target.value)}
+                    />
+                  </Grid>
+                </Grid>
+              ))
+              }
+              <IconButton onClick={() => addDropSatz(uebung.id, uebung.source)} size="small">
+                <AddIcon />
+              </IconButton>
+            </Box>
           </Box>
         </Collapse>
       </CardContent>
