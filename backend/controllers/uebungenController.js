@@ -35,15 +35,29 @@ exports.getUebungById = async (req, res) => {
   }
 };
 
-// Neue Übung erstellen
-exports.createUebung = async (req, res) => {
+// Benutzerdefinierte Übung erstellen
+exports.createUserUebung = async (req, res) => {
   try {
-    const { name, zielmuskel, kategorie, beschreibung, sicherheitshinweise } = req.body;
+    const { name, beschreibung, zielmuskel, kategorie } = req.body;
+    const userId = req.user.id;
+
     const [result] = await db.query(
-      'INSERT INTO uebungen (name, zielmuskel, kategorie, beschreibung, sicherheitshinweise) VALUES (?, ?, ?, ?, ?)',
-      [name, zielmuskel, kategorie, beschreibung, sicherheitshinweise]
+      'INSERT INTO nutzer_eigene_uebungen (nutzer_id, uebung_name, uebung_beschreibung, zielmuskel, kategorie) VALUES (?, ?, ?, ?, ?)',
+      [userId, name, beschreibung, zielmuskel || null, kategorie]
     );
-    res.status(201).json({ id: result.insertId, message: 'Übung erstellt' });
+
+    res.status(201).json({ id: result.insertId, message: 'Übung erfolgreich erstellt' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Alle Übungen eines Benutzers abrufen
+exports.getUebungByUserId = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [rows] = await db.query('SELECT * FROM nutzer_eigene_uebungen WHERE nutzer_id = ?', [id]);
+    res.json(rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

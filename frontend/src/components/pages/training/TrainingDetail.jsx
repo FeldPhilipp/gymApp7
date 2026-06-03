@@ -573,7 +573,9 @@ const TrainingDetail = () => {
     return (
         <>
             <ThemeProvider theme={darkTheme}>
-                <Box sx={{ bgcolor: 'background.default', minHeight: '100vh', pb: 4 }}>
+                <Box sx={{
+                    bgcolor: 'background.default', minHeight: '100vh', pb: 10
+                }}>
                     <NavBar />
                     <Container maxWidth="sm" sx={{ pt: 2, px: { xs: 1, sm: 2 } }}>
                         {/* Header */}

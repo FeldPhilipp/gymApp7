@@ -66,6 +66,7 @@ import { useApiProtectionContext } from '../../context/ApiProtectionContext';
 import BackButton from '../../util/buttons/BackButton';
 import NavBarBot from '../../layout/NavBarBot';
 import Notification from '../../util/notifications/Notification';
+import HistoryDialog from '../../util/Dialogs/HistoryDialog';
 import HeaderCard from '../../layout/HeaderCard';
 import LoadingNavBarBot from '../../layout/LoadingNavBarBot';
 import LoadingPage from '../../layout/LoadingPage';
@@ -87,6 +88,7 @@ function UebungCard({
   ergebnisse,
   onChange,
   onToggleHistory,
+  onOpenFullHistory,
   showHistory,
   letzteErgebnisse,
   isDragging
@@ -102,7 +104,7 @@ function UebungCard({
     transform,
     transition,
   } = useSortable({
-    id: uebung.id,
+    id: uebung.uiId,
   });
 
   const style = {
@@ -129,6 +131,7 @@ function UebungCard({
     }, {})
     : {};
 
+  const saetze = Array.isArray(ergebnisse?.saetze) ? ergebnisse.saetze : [];
   const sortedSessions = Object.values(groupedBySession)
     .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
@@ -225,6 +228,13 @@ function UebungCard({
                 <Typography variant="subtitle2" gutterBottom fontWeight={600}>
                   Trainings-Historie:
                 </Typography>
+                <Button
+                  size="small"
+                  onClick={() => onOpenFullHistory?.(uebung, letzteErgebnisse)}
+                  sx={{ color: '#667eea', textTransform: 'none' }}
+                >
+                  Ganze Historie anzeigen
+                </Button>
               </Box>
 
               {sortedSessions.slice(0, 1).map((session, sessionIdx) => (
@@ -282,7 +292,7 @@ function UebungCard({
           <Divider sx={{ my: 2 }} />
 
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {ergebnisse.saetze.map((satz, satzIdx) => (
+            {saetze.length > 0 ? saetze.map((satz, satzIdx) => (
               <Box key={satzIdx}>
                 <Typography variant="body2" color="text.secondary" gutterBottom>
                   Satz {satzIdx + 1}
@@ -301,7 +311,7 @@ function UebungCard({
                       size="small"
                       fullWidth
                       value={satz.gewicht}
-                      onChange={(e) => onChange(uebung.id, satzIdx, 'gewicht', e.target.value)}
+                      onChange={(e) => onChange(uebung.uiId, satzIdx, 'gewicht', e.target.value)}
                       inputProps={{ step: "0.5" }}
                     />
                   </Grid>
@@ -318,12 +328,16 @@ function UebungCard({
                       size="small"
                       fullWidth
                       value={satz.wiederholungen}
-                      onChange={(e) => onChange(uebung.id, satzIdx, 'wiederholungen', e.target.value)}
+                      onChange={(e) => onChange(uebung.uiId, satzIdx, 'wiederholungen', e.target.value)}
                     />
                   </Grid>
                 </Grid>
               </Box>
-            ))}
+            )) : (
+              <Typography variant="body2" color="text.secondary">
+                Keine Sätze zum Eintragen verfügbar.
+              </Typography>
+            )}
           </Box>
         </Collapse>
       </CardContent>
@@ -342,15 +356,19 @@ function Trainingsergebnisse() {
   const [selectedCustomPlan, setSelectedCustomPlan] = useState('');
   const [selectedStandardPlan, setSelectedStandardPlan] = useState('');
   const [alleUebungen, setAlleUebungen] = useState([]);
+  const [customUebungen, setCustomUebungen] = useState([]);
   const [gewaehlteUebungen, setGewaehlteUebungen] = useState([]);
   const [ergebnisse, setErgebnisse] = useState({});
   const [letzteErgebnisse, setLetzteErgebnisse] = useState({});
   const [showHistory, setShowHistory] = useState({});
   const [activeId, setActiveId] = useState(null);
   const [showNotification, setShowNotification] = useState(false);
+  const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
+  const [historyDialogContext, setHistoryDialogContext] = useState({ uebung: null, historyData: [] });
   const [timerStart, setTimerStart] = useState(null);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
+  const [saveConfirmOpen, setSaveConfirmOpen] = useState(false);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editIndex, setEditIndex] = useState(null);
@@ -364,6 +382,41 @@ function Trainingsergebnisse() {
 
   // const STORAGE_KEY = `training_${nutzer?.id}`;
   const nutzerId = nutzer?.id;
+
+  const createDefaultSaetze = (count = 3) =>
+    Array.from({ length: count }, () => ({ wiederholungen: '', gewicht: '' }));
+
+  const parseUebungKey = (uiId) => {
+    if (typeof uiId !== 'string') {
+      return { source: null, uebungId: null };
+    }
+
+    const parts = uiId.split('-');
+    if (parts.length >= 3) {
+      const source = parts[0];
+      const uebungId = parseInt(parts[1], 10);
+      return { source, uebungId: Number.isNaN(uebungId) ? null : uebungId };
+    }
+
+    return {
+      source: parts[0] || null,
+      uebungId: parseInt(parts[parts.length - 1], 10) || null
+    };
+  };
+
+  const createExerciseItem = (exercise, source = 'standard', index = 0) => {
+    const uebungId = exercise.uebung_id || exercise.id || exercise.uebungId;
+    const uiId = exercise.uiId || `${source}-${uebungId}-${index}`;
+
+    return {
+      ...exercise,
+      id: exercise.id || uebungId,
+      uebung_id: uebungId,
+      source,
+      uiId,
+      empfohlene_saetze: exercise.empfohlene_saetze || 3,
+    };
+  };
 
   // Sensoren für Drag & Drop
   const sensors = useSensors(
@@ -401,7 +454,9 @@ function Trainingsergebnisse() {
       setLoading(true);
       try {
         const response = await TestApi.getAllUebungen();
+        const customUebungen = await TrainingApi.getUebungenByUserId(nutzerId);
         setAlleUebungen(response.data);
+        setCustomUebungen(customUebungen.data);
       } catch (err) {
         console.error('Fehler beim Laden der Übungen:', err);
       } finally {
@@ -409,7 +464,7 @@ function Trainingsergebnisse() {
       }
     };
     fetchUebungen();
-  }, []);
+  }, [nutzerId]);
 
   // Trainingspläne laden
   useEffect(() => {
@@ -470,8 +525,32 @@ function Trainingsergebnisse() {
           setSelectedPlanType(trainingsplan_typ);
 
           if (gewaehlte_uebungen && gewaehlte_uebungen.length > 0) {
-            setGewaehlteUebungen(gewaehlte_uebungen);
-            setErgebnisse(ergebnisse || {});
+
+            // uiIds frisch generieren, damit veraltete Cache-Einträge automatisch geheilt werden
+            const uebungenMitNeuenIds = gewaehlte_uebungen.map((u, index) => {
+              const source = u.source || 'standard';
+              const uebungId = u.uebung_id || u.id;
+              const freshUiId = `${source}-${uebungId}-${index}`;
+              return { alte_uiId: u.uiId, neue_uiId: freshUiId, u, source, index };
+            });
+
+            const neueMappedUebungen = uebungenMitNeuenIds.map(({ u, source, index, neue_uiId }) =>
+              createExerciseItem({ ...u, uiId: neue_uiId }, source, index)
+            );
+
+            // Ergebnisse-Keys auf neue uiIds umschreiben
+            const neueErgebnisse = {};
+            uebungenMitNeuenIds.forEach(({ alte_uiId, neue_uiId }) => {
+              if (ergebnisse?.[alte_uiId]) {
+                neueErgebnisse[neue_uiId] = ergebnisse[alte_uiId];
+              } else if (ergebnisse?.[neue_uiId]) {
+                neueErgebnisse[neue_uiId] = ergebnisse[neue_uiId];
+              }
+            });
+
+            setGewaehlteUebungen(neueMappedUebungen);
+            setErgebnisse(neueErgebnisse);
+
             // Timer wiederherstellen
             if (timer_start) {
               const now = new Date().getTime();
@@ -554,7 +633,7 @@ function Trainingsergebnisse() {
   // Prüfe ob Daten eingegeben wurden
   const hatEingaben = () => {
     return Object.values(ergebnisse).some(uebung =>
-      uebung.saetze.some(satz => satz.gewicht || satz.wiederholungen)
+      Array.isArray(uebung?.saetze) && uebung.saetze.some(satz => satz.gewicht || satz.wiederholungen)
     );
   };
 
@@ -603,42 +682,41 @@ function Trainingsergebnisse() {
         const response = await TrainingApi.getCustomPlanUebungen(planId, nutzer.id);
         const { uebungen } = response.data;
 
-        uebungenMitId = uebungen.map(u => ({
-          id: u.uebung_id,
-          name: u.uebung_name,
-          zielmuskel: u.zielmuskel,
-          kategorie: u.kategorie,
-          beschreibung: u.beschreibung
-        }));
+        uebungenMitId = uebungen.map((u, index) => {
+          const uebungSource = u.eigene_uebung === 1 ? 'custom' : 'standard';
+
+          return createExerciseItem({
+            uebung_id: u.uebung_id,
+            name: u.uebung_name,
+            zielmuskel: u.zielmuskel,
+            kategorie: u.kategorie,
+            beschreibung: u.beschreibung,
+            empfohlene_saetze: u.empfohlene_saetze || 3
+          }, uebungSource, index);
+        });
 
         initialErgebnisse = {};
-        uebungen.forEach(u => {
-          initialErgebnisse[u.uebung_id] = {
-            saetze: Array(u.empfohlene_saetze || 3).fill().map(() => ({
-              wiederholungen: '',
-              gewicht: ''
-            }))
+        uebungenMitId.forEach(item => {
+          initialErgebnisse[item.uiId] = {
+            saetze: createDefaultSaetze(item.empfohlene_saetze)
           };
         });
       } else {
         const response = await TrainingApi.getUebungenFuerPlan(planId, nutzer.id, 'standard');
         const { uebungen } = response.data;
 
-        uebungenMitId = uebungen.map(u => ({
-          id: u.uebung_id,
+        uebungenMitId = uebungen.map((u, index) => createExerciseItem({
+          uebung_id: u.uebung_id,
           name: u.uebung_name,
           zielmuskel: u.zielmuskel,
           kategorie: u.kategorie,
           beschreibung: u.beschreibung
-        }));
+        }, 'standard', index));
 
         initialErgebnisse = {};
-        uebungen.forEach(u => {
-          initialErgebnisse[u.uebung_id] = {
-            saetze: Array(u.empfohlene_saetze || 3).fill().map(() => ({
-              wiederholungen: '',
-              gewicht: ''
-            }))
+        uebungenMitId.forEach(item => {
+          initialErgebnisse[item.uiId] = {
+            saetze: createDefaultSaetze(item.empfohlene_saetze)
           };
         });
       }
@@ -672,13 +750,18 @@ function Trainingsergebnisse() {
 
     if (editIndex !== null) {
       const updated = [...gewaehlteUebungen];
-      updated[editIndex] = selectedUebung;
+      updated[editIndex] = {
+        ...selectedUebung,
+        source: selectedUebung.source || 'standard'
+      };
       setGewaehlteUebungen(updated);
     } else {
-      setGewaehlteUebungen([...gewaehlteUebungen, selectedUebung]);
+      const source = selectedUebung.source || 'standard';
+      const newItem = createExerciseItem({ ...selectedUebung, source }, source, gewaehlteUebungen.length);
+      setGewaehlteUebungen([...gewaehlteUebungen, newItem]);
       setErgebnisse(prev => ({
         ...prev,
-        [selectedUebung.id]: {
+        [newItem.uiId]: {
           saetze: Array(3).fill().map(() => ({ wiederholungen: '', gewicht: '' }))
         }
       }));
@@ -687,9 +770,9 @@ function Trainingsergebnisse() {
   };
 
   const handleDeleteUebung = (index) => {
-    const uebungId = gewaehlteUebungen[index].id;
+    const uebungKey = gewaehlteUebungen[index].uiId;
     setGewaehlteUebungen(gewaehlteUebungen.filter((_, i) => i !== index));
-    const { [uebungId]: removed, ...rest } = ergebnisse;
+    const { [uebungKey]: removed, ...rest } = ergebnisse;
     setErgebnisse(rest);
   };
 
@@ -699,99 +782,60 @@ function Trainingsergebnisse() {
 
     if (over && active.id !== over.id) {
       setGewaehlteUebungen(prev => {
-        const oldIndex = prev.findIndex(u => u.id === active.id);
-        const newIndex = prev.findIndex(u => u.id === over.id);
+        const oldIndex = prev.findIndex(u => u.uiId === active.id);
+        const newIndex = prev.findIndex(u => u.uiId === over.id);
         return arrayMove(prev, oldIndex, newIndex);
       });
     }
   };
 
-  const handleInputChange = (uebungId, satzIdx, field, value) => {
-    setErgebnisse(prev => ({
-      ...prev,
-      [uebungId]: {
-        ...prev[uebungId],
-        saetze: prev[uebungId].saetze.map((satz, idx) =>
-          idx === satzIdx ? { ...satz, [field]: value } : satz
-        )
-      }
-    }));
+  const handleInputChange = (uebungUiId, satzIdx, field, value) => {
+    setErgebnisse(prev => {
+      const existing = prev[uebungUiId] || { saetze: createDefaultSaetze() };
+      const saetze = Array.isArray(existing.saetze) ? existing.saetze : createDefaultSaetze();
+      return {
+        ...prev,
+        [uebungUiId]: {
+          ...existing,
+          saetze: saetze.map((satz, idx) =>
+            idx === satzIdx ? { ...satz, [field]: value } : satz
+          )
+        }
+      };
+    });
   };
 
-  const toggleHistory = async (uebungId) => {
-    setShowHistory(prev => ({ ...prev, [uebungId]: !prev[uebungId] }));
-    if (!letzteErgebnisse[uebungId] && !showHistory[uebungId]) {
+  const toggleHistory = async (uebung) => {
+    setShowHistory(prev => ({ ...prev, [uebung.uiId]: !prev[uebung.uiId] }));
+    if (!letzteErgebnisse[uebung.uiId] && !showHistory[uebung.uiId]) {
       try {
-        const response = await TrainingApi.getLetzteErgebnisse(uebungId, nutzer.id);
-        setLetzteErgebnisse(prev => ({ ...prev, [uebungId]: response.data }));
+        const response = await TrainingApi.getLetzteErgebnisse(uebung.uebung_id, nutzer.id, uebung.source === 'custom' ? 1 : 0);
+        setLetzteErgebnisse(prev => ({ ...prev, [uebung.uiId]: response.data }));
       } catch (err) {
         console.error('Fehler beim Laden der Historie:', err);
       }
     }
   };
 
-  //handleSave mit IndexedDB
-  // const handleSave = async () => {
-  //   setLoading(true);
-  //   setError(null);
-  //   setSuccess(false);
+  const openFullHistoryDialog = (uebung, historyData = []) => {
+    setHistoryDialogContext({ uebung, historyData });
+    setHistoryDialogOpen(true);
+  };
 
-  //   try {
-  //     const alleErgebnisse = [];
-  //     Object.entries(ergebnisse).forEach(([uebungId, data]) => {
-  //       data.saetze.forEach((satz, idx) => {
-  //         if (satz.wiederholungen && satz.gewicht) {
-  //           alleErgebnisse.push({
-  //             uebung_id: parseInt(uebungId),
-  //             satz_nummer: idx + 1,
-  //             wiederholungen: parseInt(satz.wiederholungen),
-  //             gewicht_kg: parseFloat(satz.gewicht),
-  //             notizen: null
-  //           });
-  //         }
-  //       });
-  //     });
-
-  //     if (alleErgebnisse.length === 0) {
-  //       setError('Bitte fülle mindestens eine Übung aus');
-  //       setLoading(false);
-  //       return;
-  //     }
-
-  //     const uebungenReihenfolge = gewaehlteUebungen.map((u, idx) => ({
-  //       uebung_id: u.id,
-  //       reihenfolge: idx + 1
-  //     }));
-
-  //     await protect("Trainingsergebnisse - createSessionMitHistorie", async () => {
-  //       await TrainingApi.createSessionMitHistorie({
-  //         nutzer_id: nutzer.id,
-  //         trainingsplan_id: selectedCustomPlan || selectedStandardPlan,
-  //         trainingsplan_typ: selectedPlanType, // NEU: Plantyp hinzufügen!
-  //         datum: new Date().toISOString().split('T')[0],
-  //         startzeit: null,
-  //         endzeit: null,
-  //         notizen: null,
-  //         ergebnisse: alleErgebnisse,
-  //         uebungen_reihenfolge: uebungenReihenfolge
-  //       });
-
-  //       // Speichern erfolgreich - lösche IndexedDB Session
-  //       await trainingStorage.removeItem(STORAGE_KEY);
-
-  //       setSuccess(true);
-
-  //       setTimeout(() => {
-  //         window.location.reload();
-  //       }, 3000);
-  //     });
-  //   } catch (err) {
-  //     console.error('Fehler beim Speichern:', err);
-  //     setError('Training konnte nicht gespeichert werden');
-  //   }
-  // };
+  const closeFullHistoryDialog = () => {
+    setHistoryDialogOpen(false);
+  };
 
   // ============ TRAINING SPEICHERN (Temp-Session danach löschen) ============
+
+  const handleSaveClick = () => {
+    setSaveConfirmOpen(true);
+  };
+
+  const handleSaveConfirm = async () => {
+    setSaveConfirmOpen(false);
+    await handleSave();
+  };
 
   const handleSave = async () => {
     setLoading(true);
@@ -799,15 +843,25 @@ function Trainingsergebnisse() {
 
     try {
       const alleErgebnisse = [];
-      Object.entries(ergebnisse).forEach(([uebungId, data]) => {
-        data.saetze.forEach((satz, idx) => {
+      Object.entries(ergebnisse).forEach(([uebungKey, data]) => {
+        const exercise = gewaehlteUebungen.find(u => u.uiId === uebungKey);
+        const parsed = parseUebungKey(uebungKey);
+        const source = exercise?.source || parsed.source || (selectedPlanType === 'custom' ? 'custom' : 'standard');
+        const uebungId = exercise?.uebung_id ?? parsed.uebungId;
+        const eigeneUebung = source === 'custom' ? 1 : 0;
+        const saetze = Array.isArray(data?.saetze) ? data.saetze : [];
+
+        // (debug logs removed)
+
+        saetze.forEach((satz, idx) => {
           if (satz.wiederholungen && satz.gewicht) {
             alleErgebnisse.push({
-              uebung_id: parseInt(uebungId),
+              uebung_id: uebungId,
               satz_nummer: idx + 1,
               wiederholungen: parseInt(satz.wiederholungen),
               gewicht_kg: parseFloat(satz.gewicht),
-              notizen: null
+              notizen: null,
+              eigene_uebung: eigeneUebung
             });
           }
         });
@@ -819,12 +873,17 @@ function Trainingsergebnisse() {
         return;
       }
 
-      const uebungenReihenfolge = gewaehlteUebungen.map((u, idx) => ({
-        uebung_id: u.id,
-        reihenfolge: idx + 1
-      }));
+      const uebungenReihenfolge = gewaehlteUebungen.map((u, idx) => {
+        const parsed = parseUebungKey(u.uiId || u.id?.toString?.());
+        return {
+          uebung_id: u.uebung_id ?? parsed.uebungId,
+          reihenfolge: idx + 1,
+          eigene_uebung: selectedPlanType === 'custom' ? 1 : (u.source === 'custom' || parsed.source === 'custom' ? 1 : 0)
+        };
+      });
 
       await protect("Trainingsergebnisse - createSessionMitHistorie", async () => {
+        // (debug logs removed)
         await TrainingApi.createSessionMitHistorie({
           nutzer_id: nutzer.id,
           trainingsplan_id: selectedCustomPlan || selectedStandardPlan,
@@ -837,18 +896,24 @@ function Trainingsergebnisse() {
           uebungen_reihenfolge: uebungenReihenfolge
         });
 
-        // NEU: Temp-Session nach erfolgreichem Speichern löschen
+        // Temp-Session nach erfolgreichem Speichern löschen
         await TrainingApi.deleteTempSession(nutzerId);
 
         setMessage({ type: "success", text: "Training erfolgreich gespeichert!" });
-
-        setTimeout(() => {
-          window.location.reload();
-        }, 3000);
+        setGewaehlteUebungen([]);
+        setErgebnisse({});
+        setSelectedCustomPlan('');
+        setSelectedStandardPlan('');
+        setSelectedPlanType('');
+        setTimerStart(null);
+        setElapsedTime(0);
+        setIsTimerRunning(false);
       });
     } catch (err) {
       console.error('Fehler beim Speichern:', err);
       setMessage({ type: "error", text: "Fehler beim Speichern des Trainings." });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -856,13 +921,26 @@ function Trainingsergebnisse() {
     navigate("/customTraining");
   };
 
-  const gefilterteUebungen = alleUebungen
-    .filter(u => !filterKategorie || u.kategorie === filterKategorie)
-    .filter(u => !filterZielmuskel || u.zielmuskel === filterZielmuskel)
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const sortByName = (a, b) => {
+    const nameA = (a?.name || '').toString();
+    const nameB = (b?.name || '').toString();
+    return nameA.localeCompare(nameB, 'de', { sensitivity: 'base' });
+  };
 
-  const kategorien = [...new Set(alleUebungen.map(u => u.kategorie))];
-  const zielmuskeln = [...new Set(alleUebungen.map(u => u.zielmuskel))];
+  const gefilterteUebungen = alleUebungen
+    .filter(u => u && (!filterKategorie || u.kategorie === filterKategorie))
+    .filter(u => u && (!filterZielmuskel || u.zielmuskel === filterZielmuskel))
+    .filter(u => u && u.name)
+    .sort(sortByName);
+
+  const gefilterteCustomUebungen = customUebungen
+    .filter(u => u && (!filterKategorie || u.kategorie === filterKategorie))
+    .filter(u => u && (!filterZielmuskel || u.zielmuskel === filterZielmuskel))
+    .filter(u => u && u.name)
+    .sort(sortByName);
+
+  const kategorien = [...new Set(alleUebungen.filter(u => u && u.kategorie).map(u => u.kategorie))];
+  const zielmuskeln = [...new Set(alleUebungen.filter(u => u && u.zielmuskel).map(u => u.zielmuskel))];
 
   // ============ TIMER DISPLAY ============
   const formatTime = (seconds) => {
@@ -982,7 +1060,33 @@ function Trainingsergebnisse() {
                                 },
                               }}
                             >
-                              Eigenes Training erstellen
+                              Plan erstellen
+                            </Button>
+                          </Grid>
+                          <Grid size={{ xs: 6, sm: 6 }}>
+                            <Button
+                              onClick={hanldeOpenCustomTraining}
+                              variant="contained"
+                              size="large"
+                              fullWidth
+                              sx={{
+                                padding: { xs: '10px 16px', sm: '14px 28px' },
+                                fontSize: { xs: '0.85rem', sm: '1rem' },
+                                fontWeight: 600,
+                                borderRadius: '16px',
+                                background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)',
+                                color: '#fff',
+                                textTransform: 'none',
+                                transition: 'all 0.3s ease',
+                                height: '100%',
+                                '&:hover': {
+                                  background: 'linear-gradient(135deg, #3b82f6 0%, #1e3a8a 100%)',
+                                  transform: 'translateY(-2px)',
+                                  boxShadow: '0 8px 24px rgba(30, 64, 175, 0.3)',
+                                },
+                              }}
+                            >
+                              Pläne bearb.
                             </Button>
                           </Grid>
                           <Grid size={{ xs: 6, sm: 6 }}>
@@ -990,7 +1094,6 @@ function Trainingsergebnisse() {
                               variant="contained"
                               size="large"
                               fullWidth
-                              startIcon={<AddIcon />}
                               onClick={handleAddUebung}
                               sx={{
                                 height: '100%',
@@ -1009,7 +1112,34 @@ function Trainingsergebnisse() {
                                 },
                               }}
                             >
-                              Übung hinzufügen
+                              Übung hinz.
+                            </Button>
+
+                          </Grid>
+                          <Grid size={{ xs: 6, sm: 6 }}>
+                            <Button
+                              variant="contained"
+                              size="large"
+                              fullWidth
+                              onClick={() => navigate('/user/uebung-erstellen')}
+                              sx={{
+                                height: '100%',
+                                fontSize: { xs: '0.85rem', sm: '1rem' },
+                                padding: { xs: '10px 16px', sm: '14px 28px' },
+                                fontWeight: 600,
+                                background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)',
+                                color: '#fff',
+                                borderRadius: '16px',
+                                textTransform: 'none',
+                                transition: 'all 0.3s ease',
+                                '&:hover': {
+                                  background: 'linear-gradient(135deg, #3b82f6 0%, #1e3a8a 100%)',
+                                  boxShadow: '0 6px 18px rgba(30, 64, 175, 0.25)',
+                                  transform: 'translateY(-2px)',
+                                },
+                              }}
+                            >
+                              Übung erstellen
                             </Button>
 
                           </Grid>
@@ -1038,7 +1168,7 @@ function Trainingsergebnisse() {
                               },
                             }}
                           >
-                            Eigenes Training erstellen
+                            Plan erstellen
                           </Button>
                         </Grid>
                       )}
@@ -1048,13 +1178,13 @@ function Trainingsergebnisse() {
                 </Card>
 
 
-                {message.status === "error" || message.status === "success" && (
+                {(message.type === "error" || message.type === "success") && (
                   <Notification
                     type={message.type}
                     message={message.text}
                     onClose={() => {
                       setShowNotification(true);
-                      setMessage({type: "", text: ""});
+                      setMessage({ type: "", text: "" });
                     }}
                   />
                 )}
@@ -1064,10 +1194,11 @@ function Trainingsergebnisse() {
                     {!isMobile && (
                       <Grid size={{ xs: 12, sm: 12 }} sx={{ pb: "15px" }}>
                         <Button
-                          onClick={handleSave}
+                          onClick={handleSaveClick}
                           variant="contained"
                           size="large"
                           fullWidth
+                          disabled={loading || !hatEingaben()}
                           sx={{
                             padding: { xs: '10px 16px', sm: '14px 28px' },
                             fontSize: { xs: '0.85rem', sm: '1rem' },
@@ -1096,21 +1227,22 @@ function Trainingsergebnisse() {
                       onDragEnd={handleDragEnd}
                     >
                       <SortableContext
-                        items={gewaehlteUebungen.map(u => u.id)}
+                        items={gewaehlteUebungen.map(u => u.uiId)}
                         strategy={verticalListSortingStrategy}
                       >
-                        {gewaehlteUebungen.map((uebung) => (
+                        {gewaehlteUebungen.map((uebung, index) => (
                           <UebungCard
-                            key={uebung.id}
+                            key={uebung.uiId}
                             uebung={uebung}
-                            onEdit={() => handleEditUebung(gewaehlteUebungen.findIndex(u => u.id === uebung.id))}
-                            onDelete={() => handleDeleteUebung(gewaehlteUebungen.findIndex(u => u.id === uebung.id))}
-                            ergebnisse={ergebnisse[uebung.id] || { saetze: [] }}
+                            onEdit={() => handleEditUebung(index)}
+                            onDelete={() => handleDeleteUebung(index)}
+                            ergebnisse={ergebnisse[uebung.uiId] || { saetze: createDefaultSaetze() }}
                             onChange={handleInputChange}
-                            onToggleHistory={() => toggleHistory(uebung.id)}
-                            showHistory={showHistory[uebung.id]}
-                            letzteErgebnisse={letzteErgebnisse[uebung.id]}
-                            isDragging={activeId === uebung.id}
+                            onToggleHistory={() => toggleHistory(uebung)}
+                            onOpenFullHistory={(exercise, historyData) => openFullHistoryDialog(exercise, historyData)}
+                            showHistory={showHistory[uebung.uiId]}
+                            letzteErgebnisse={letzteErgebnisse[uebung.uiId]}
+                            isDragging={activeId === uebung.uiId}
                           />
                         ))}
                       </SortableContext>
@@ -1157,23 +1289,46 @@ function Trainingsergebnisse() {
                     </Box>
 
                     <Autocomplete
-                      options={gefilterteUebungen}
-                      getOptionLabel={(option) => `${option.name} (${option.zielmuskel})`}
+                      options={[
+                        ...gefilterteUebungen.map((u, index) => createExerciseItem({
+                          id: `standard-${u.id}`,
+                          uebung_id: u.id,
+                          name: u.name,
+                          zielmuskel: u.zielmuskel,
+                          kategorie: u.kategorie,
+                          _quelle: "Übungen"
+                        }, 'standard', index)),
+                        ...gefilterteCustomUebungen.map((u, index) => createExerciseItem({
+                          id: `custom-${u.id}`,
+                          uebung_id: u.id,
+                          name: u.uebung_name,
+                          beschreibung: u.uebung_beschreibung,
+                          muskelgruppe: u.muskelgruppe,
+                          zielmuskel: u.zielmuskel,
+                          kategorie: u.kategorie,
+                          _quelle: "Meine Übungen"
+                        }, 'custom', index)),
+                      ]}
+                      groupBy={(option) => option._quelle}
+                      getOptionLabel={(option) => `${option.name || option.uebung_name} (${option.zielmuskel})`}
                       value={selectedUebung}
                       onChange={(e, newValue) => setSelectedUebung(newValue)}
                       renderInput={(params) => (
                         <TextField {...params} label="Übung suchen" />
                       )}
-                      renderOption={(props, option) => (
-                        <li {...props}>
-                          <Box>
-                            <Typography variant="body1">{option.name}</Typography>
-                            <Typography variant="body2" color="text.secondary">
-                              {option.zielmuskel} • {option.kategorie}
-                            </Typography>
-                          </Box>
-                        </li>
-                      )}
+                      renderOption={(props, option) => {
+                        const { key, ...other } = props;
+                        return (
+                          <li key={key} {...other}>
+                            <Box>
+                              <Typography variant="body1">{option.name || option.uebung_name}</Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                {option.zielmuskel} • {option.kategorie}
+                              </Typography>
+                            </Box>
+                          </li>
+                        );
+                      }}
                     />
                   </Box>
                 </DialogContent>
@@ -1188,17 +1343,23 @@ function Trainingsergebnisse() {
                   </Button>
                 </DialogActions>
               </Dialog>
+              <HistoryDialog
+                open={historyDialogOpen}
+                onClose={closeFullHistoryDialog}
+                uebung={historyDialogContext.uebung}
+                historyData={historyDialogContext.historyData}
+              />
             </>
           ) : (
             <>
               <Container maxWidth="lg" sx={{ pt: { xs: 2, md: 4 } }}>
-                {message.status === "error" || message.status === "success" && (
+                {(message.type === "error" || message.type === "success") && (
                   <Notification
                     type={message.type}
                     message={message.text}
                     onClose={() => {
                       setShowNotification(true);
-                      setMessage({type: "", text: ""});
+                      setMessage({ type: "", text: "" });
                     }}
                   />
                 )}
@@ -1207,10 +1368,36 @@ function Trainingsergebnisse() {
             </>
           )}
         </Box>
+        <Dialog open={saveConfirmOpen} onClose={() => setSaveConfirmOpen(false)}>
+          <DialogTitle>Training speichern?</DialogTitle>
+          <DialogContent>
+            <Typography>
+              Möchtest du dein Training wirklich speichern?
+            </Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setSaveConfirmOpen(false)}>
+              Abbrechen
+            </Button>
+            <Button
+              onClick={handleSaveConfirm}
+              variant="contained"
+              sx={{
+                background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)',
+                borderRadius: '8px',
+                textTransform: 'none',
+                fontWeight: 600,
+              }}
+            >
+              Speichern
+            </Button>
+          </DialogActions>
+        </Dialog>
       </ThemeProvider >
       <NavBarBot
-        mainBtnF={handleSave}
+        mainBtnF={handleSaveClick}
         mainBtnTxt={"Speichern"}
+        mainBtnDisabled={loading || !hatEingaben()}
         sideBtn3Icon={<TimerDisplay />}
         sideBtn3F={handleToggleTimer}
       />

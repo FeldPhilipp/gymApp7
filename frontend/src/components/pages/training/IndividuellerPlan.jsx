@@ -554,7 +554,8 @@ const IndividuellerPlan = () => {
                             satz_nummer: idx + 1,
                             wiederholungen: parseInt(satz.wiederholungen),
                             gewicht_kg: parseFloat(satz.gewicht),
-                            notizen: null
+                            notizen: null,
+                            eigene_uebung: 1
                         });
                     }
                 });
@@ -569,14 +570,15 @@ const IndividuellerPlan = () => {
             const uebungenReihenfolge = gewaehlteUebungen.map((u, idx) => ({
                 // Verwende id falls vorhanden (System-Übungen), sonst nutzer_id (Nutzer-Übungen)
                 uebung_id: u.id || u.nutzer_id,
-                reihenfolge: idx + 1
+                reihenfolge: idx + 1,
+                eigene_uebung: 1
             }));
 
             await protect("Trainingsergebnisse - createSessionMitHistorie", async () => {
                 await TrainingApi.createSessionMitHistorie({
                     nutzer_id: nutzer.id,
-                    trainingsplan_id: 0,
-                    trainingsplan_typ: "individual",
+                    trainingsplan_id: null,
+                    trainingsplan_typ: "custom",
                     datum: new Date().toISOString().split('T')[0],
                     startzeit: null,
                     endzeit: null,
