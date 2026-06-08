@@ -57,7 +57,9 @@ exports.getLetzteErgebnisse = async (req, res) => {
         te.satz_nummer,
         te.wiederholungen,
         te.gewicht_kg,
-        te.notizen
+        te.notizen,
+        te.ist_dropsatz,
+        te.parent_satz_nummer
       FROM trainings_ergebnisse te
       JOIN trainings_sessions ts ON te.session_id = ts.id
       WHERE te.uebung_id = ? AND te.eigene_uebung = ? AND ts.nutzer_id = ?
@@ -76,17 +78,14 @@ exports.createSession = async (req, res) => {
   try {
     const { nutzer_id, trainingsplan_id, trainingsplan_typ, datum, startzeit, endzeit, notizen, ergebnisse } = req.body;
 
-    // Validierung des Plantyps
     const planTyp = trainingsplan_typ || 'standard';
     if (!['standard', 'custom'].includes(planTyp)) {
       return res.status(400).json({ error: 'Ungültiger Trainingsplan-Typ' });
     }
 
-    // NEUE LOGIK: Bestimme welche Spalte befüllt werden soll
     const standard_plan_id = planTyp === 'standard' ? trainingsplan_id : null;
-    const custom_plan_id = planTyp === 'custom' ? trainingsplan_id : null;
+    const custom_plan_id   = planTyp === 'custom'   ? trainingsplan_id : null;
 
-    // Session erstellen
     const [sessionResult] = await db.query(
       'INSERT INTO trainings_sessions (nutzer_id, standard_plan_id, custom_plan_id, trainingsplan_typ, datum, startzeit, endzeit, notizen) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       [nutzer_id, standard_plan_id, custom_plan_id, planTyp, datum, startzeit, endzeit, notizen]
@@ -94,7 +93,6 @@ exports.createSession = async (req, res) => {
 
     const sessionId = sessionResult.insertId;
 
-    // Ergebnisse einfügen
     if (ergebnisse && ergebnisse.length > 0) {
       const values = ergebnisse.map(e => [
         sessionId,
@@ -103,20 +101,18 @@ exports.createSession = async (req, res) => {
         e.wiederholungen,
         e.gewicht_kg,
         e.notizen,
-        e.eigene_uebung || 0
+        e.eigene_uebung      || 0,
+        e.ist_dropsatz       || 0,
+        e.parent_satz_nummer ?? null,  // NEU
       ]);
 
       await db.query(
-        'INSERT INTO trainings_ergebnisse (session_id, uebung_id, satz_nummer, wiederholungen, gewicht_kg, notizen, eigene_uebung) VALUES ?',
+        'INSERT INTO trainings_ergebnisse (session_id, uebung_id, satz_nummer, wiederholungen, gewicht_kg, notizen, eigene_uebung, ist_dropsatz, parent_satz_nummer) VALUES ?',
         [values]
       );
     }
 
-    res.status(201).json({
-      message: 'Training erfolgreich gespeichert',
-      sessionId: sessionId
-    });
-
+    res.status(201).json({ message: 'Training erfolgreich gespeichert', sessionId });
   } catch (error) {
     console.error('Fehler beim Speichern der Session:', error);
     res.status(500).json({ error: error.message });
@@ -161,11 +157,9 @@ exports.getUebungenFuerPlan = async (req, res) => {
   try {
     const { planId } = req.params;
     const { nutzerId, planTyp } = req.query;
-
     const typ = planTyp || 'standard';
 
     if (typ === 'custom') {
-      // Custom Plan - lade Übungen aus nutzer_eigene_trainingsplan_uebungen
       const [rows] = await db.query(`
         SELECT 
           netu.reihenfolge,
@@ -187,7 +181,6 @@ exports.getUebungenFuerPlan = async (req, res) => {
       return res.json({ source: 'custom', uebungen: rows });
     }
 
-    // Standard Plan - prüfe Historie
     const [historie] = await db.query(`
       SELECT DISTINCT uebung_id
       FROM nutzer_trainingsplan_historie
@@ -195,7 +188,6 @@ exports.getUebungenFuerPlan = async (req, res) => {
     `, [nutzerId, planId]);
 
     if (historie.length > 0) {
-      // User hat Plan schon gemacht - Lade letzte Übungen
       const [rows] = await db.query(`
         SELECT 
           nth.reihenfolge,
@@ -211,26 +203,25 @@ exports.getUebungenFuerPlan = async (req, res) => {
       `, [nutzerId, planId]);
 
       return res.json({ source: 'historie', uebungen: rows });
-    } else {
-      // User hat Plan noch nie gemacht - Lade Standard-Übungen
-      const [rows] = await db.query(`
-        SELECT 
-          tsu.reihenfolge,
-          tsu.empfohlene_saetze,
-          tsu.empfohlene_wiederholungen,
-          u.id as uebung_id,
-          u.name as uebung_name,
-          u.zielmuskel,
-          u.kategorie,
-          u.beschreibung
-        FROM trainingsplan_standard_uebungen tsu
-        JOIN uebungen u ON tsu.uebung_id = u.id
-        WHERE tsu.trainingsplan_id = ?
-        ORDER BY tsu.reihenfolge
-      `, [planId]);
-
-      return res.json({ source: 'standard', uebungen: rows });
     }
+
+    const [rows] = await db.query(`
+      SELECT 
+        tsu.reihenfolge,
+        tsu.empfohlene_saetze,
+        tsu.empfohlene_wiederholungen,
+        u.id as uebung_id,
+        u.name as uebung_name,
+        u.zielmuskel,
+        u.kategorie,
+        u.beschreibung
+      FROM trainingsplan_standard_uebungen tsu
+      JOIN uebungen u ON tsu.uebung_id = u.id
+      WHERE tsu.trainingsplan_id = ?
+      ORDER BY tsu.reihenfolge
+    `, [planId]);
+
+    return res.json({ source: 'standard', uebungen: rows });
   } catch (error) {
     console.error('Fehler beim Abrufen der Übungen für Plan:', error);
     res.status(500).json({ error: error.message });
@@ -256,18 +247,14 @@ exports.createSessionMitHistorie = async (req, res) => {
       uebungen_reihenfolge
     } = req.body;
 
-    // (debug logs removed)
-
-    // Validierung des Plantyps
     const planTyp = trainingsplan_typ || 'standard';
     if (!['standard', 'custom'].includes(planTyp)) {
       await connection.rollback();
       return res.status(400).json({ error: 'Ungültiger Trainingsplan-Typ' });
     }
 
-    // NEUE LOGIK: Bestimme welche Spalte befüllt werden soll
     const standard_plan_id = planTyp === 'standard' ? trainingsplan_id : null;
-    const custom_plan_id = planTyp === 'custom' ? trainingsplan_id : null;
+    const custom_plan_id   = planTyp === 'custom'   ? trainingsplan_id : null;
 
     // 1. Session erstellen
     const [sessionResult] = await connection.query(
@@ -277,7 +264,7 @@ exports.createSessionMitHistorie = async (req, res) => {
 
     const sessionId = sessionResult.insertId;
 
-    // 2. Ergebnisse einfügen
+    // 2. Ergebnisse einfügen (normale Sätze + Dropsätze)
     if (ergebnisse && ergebnisse.length > 0) {
       const values = ergebnisse.map(e => [
         sessionId,
@@ -286,31 +273,29 @@ exports.createSessionMitHistorie = async (req, res) => {
         e.wiederholungen,
         e.gewicht_kg,
         e.notizen,
-        e.eigene_uebung || 0
+        e.eigene_uebung      || 0,
+        e.ist_dropsatz       || 0,
+        e.parent_satz_nummer ?? null,  // NEU
       ]);
 
-      // (debug logs removed)
-
       await connection.query(
-        'INSERT INTO trainings_ergebnisse (session_id, uebung_id, satz_nummer, wiederholungen, gewicht_kg, notizen, eigene_uebung) VALUES ?',
+        'INSERT INTO trainings_ergebnisse (session_id, uebung_id, satz_nummer, wiederholungen, gewicht_kg, notizen, eigene_uebung, ist_dropsatz, parent_satz_nummer) VALUES ?',
         [values]
       );
     }
 
-    // 3. Historie aktualisieren (nur für Standard-Pläne)
+    // 3. Historie aktualisieren (nur Standard-Pläne)
     if (planTyp === 'standard' && uebungen_reihenfolge && uebungen_reihenfolge.length > 0) {
-      // Erst alte Historie für diesen Plan löschen
       await connection.query(
         'DELETE FROM nutzer_trainingsplan_historie WHERE nutzer_id = ? AND trainingsplan_id = ?',
         [nutzer_id, trainingsplan_id]
       );
 
-      // Neue Historie einfügen
       const historieValues = uebungen_reihenfolge.map(u => [
         nutzer_id,
         trainingsplan_id,
         u.uebung_id,
-        u.reihenfolge
+        u.reihenfolge,
       ]);
 
       await connection.query(
@@ -320,11 +305,7 @@ exports.createSessionMitHistorie = async (req, res) => {
     }
 
     await connection.commit();
-
-    res.status(201).json({
-      message: 'Training erfolgreich gespeichert',
-      sessionId: sessionId
-    });
+    res.status(201).json({ message: 'Training erfolgreich gespeichert', sessionId });
 
   } catch (error) {
     await connection.rollback();
@@ -339,9 +320,9 @@ exports.createSessionMitHistorie = async (req, res) => {
 exports.getDashboardStats = async (req, res) => {
   try {
     const { nutzerId } = req.params;
-    const { gruppeId } = req.query;
+    const { gruppeId }  = req.query;
 
-    // 1. LETZTE TRAININGS - IMMER NUR EIGENE
+    // 1. Letzte Trainings
     const [letzteTrainings] = await db.query(`
       SELECT 
         ts.id,
@@ -361,44 +342,37 @@ exports.getDashboardStats = async (req, res) => {
       ORDER BY ts.datum DESC
     `, [nutzerId]);
 
-    // 2. BESTE FORTSCHRITTE - IMMER NUR EIGENE
+    // 2. Beste Fortschritte – nur normale Sätze (ist_dropsatz = 0)
     const [verbesserungen] = await db.query(`
       SELECT 
-        u.name as uebung_name,
+        u.name          as uebung_name,
         u.zielmuskel,
-        MAX(te.gewicht_kg) as aktuell,
-        (
-          SELECT MAX(te2.gewicht_kg)
-          FROM trainings_ergebnisse te2
-          JOIN trainings_sessions ts2 ON te2.session_id = ts2.id
-          WHERE te2.uebung_id = te.uebung_id
-          AND ts2.nutzer_id = ?
-          AND ts2.datum < DATE_SUB(CURDATE(), INTERVAL 30 DAY)
-        ) as vor_30_tagen,
-        (MAX(te.gewicht_kg) - (
-          SELECT MAX(te2.gewicht_kg)
-          FROM trainings_ergebnisse te2
-          JOIN trainings_sessions ts2 ON te2.session_id = ts2.id
-          WHERE te2.uebung_id = te.uebung_id
-          AND ts2.nutzer_id = ?
-          AND ts2.datum < DATE_SUB(CURDATE(), INTERVAL 30 DAY)
-        )) as steigerung
+        MAX(te.gewicht_kg)   as aktuell,
+        MAX(te_alt.gewicht_kg) as vor_30_tagen,
+        MAX(te.gewicht_kg) - MAX(te_alt.gewicht_kg) as steigerung
       FROM trainings_ergebnisse te
       JOIN trainings_sessions ts ON te.session_id = ts.id
       JOIN uebungen u ON te.uebung_id = u.id
+      LEFT JOIN trainings_ergebnisse te_alt
+        ON te_alt.uebung_id = te.uebung_id
+        AND te_alt.ist_dropsatz = 0
+        AND te_alt.session_id IN (
+          SELECT id FROM trainings_sessions
+          WHERE nutzer_id = ?
+          AND datum < DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+        )
       WHERE ts.nutzer_id = ?
-      AND ts.datum >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+        AND ts.datum >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+        AND te.ist_dropsatz = 0
       GROUP BY te.uebung_id
       HAVING steigerung > 0
       ORDER BY steigerung DESC
       LIMIT 5
-    `, [nutzerId, nutzerId, nutzerId]);
+    `, [nutzerId, nutzerId]);
 
-    // 3. HIGHSCORES - ABHÄNGIG VON GRUPPE/PERSÖNLICH
+    // 3. Highscores – nur normale Sätze (ist_dropsatz = 0)
     let highscores;
-
     if (gruppeId) {
-      // GRUPPE: Alle Gruppenmitglieder
       const [groupHighscores] = await db.query(`
         SELECT 
           u.name as uebung_name,
@@ -414,22 +388,23 @@ exports.getDashboardStats = async (req, res) => {
         WHERE ts.nutzer_id IN (
           SELECT nutzer_id FROM gruppen_mitglieder WHERE gruppe_id = ?
         )
+        AND te.ist_dropsatz = 0
         GROUP BY te.uebung_id, ts.nutzer_id
         HAVING max_gewicht = (
           SELECT MAX(te2.gewicht_kg)
           FROM trainings_ergebnisse te2
           JOIN trainings_sessions ts2 ON te2.session_id = ts2.id
           WHERE te2.uebung_id = te.uebung_id
-          AND ts2.nutzer_id IN (
-            SELECT nutzer_id FROM gruppen_mitglieder WHERE gruppe_id = ?
-          )
+            AND te2.ist_dropsatz = 0
+            AND ts2.nutzer_id IN (
+              SELECT nutzer_id FROM gruppen_mitglieder WHERE gruppe_id = ?
+            )
         )
         ORDER BY u.name
         LIMIT 10
       `, [gruppeId, gruppeId]);
       highscores = groupHighscores;
     } else {
-      // PERSÖNLICH: Nur eigene Highscores
       const [personalHighscores] = await db.query(`
         SELECT 
           u.name as uebung_name,
@@ -443,6 +418,7 @@ exports.getDashboardStats = async (req, res) => {
         JOIN uebungen u ON te.uebung_id = u.id
         JOIN nutzer n ON ts.nutzer_id = n.id
         WHERE ts.nutzer_id = ?
+          AND te.ist_dropsatz = 0
         GROUP BY te.uebung_id
         ORDER BY u.name
         LIMIT 10
@@ -450,12 +426,7 @@ exports.getDashboardStats = async (req, res) => {
       highscores = personalHighscores;
     }
 
-    res.json({
-      letzteTrainings,
-      verbesserungen,
-      highscores,
-      isGruppenAnsicht: !!gruppeId
-    });
+    res.json({ letzteTrainings, verbesserungen, highscores, isGruppenAnsicht: !!gruppeId });
 
   } catch (error) {
     console.error('Fehler beim Abrufen der Dashboard-Stats:', error);
@@ -492,10 +463,7 @@ exports.getSessionDetails = async (req, res) => {
       WHERE ts.id = ?
     `, [sessionId]);
 
-    if (rows.length === 0) {
-      return res.status(404).json({ error: 'Session nicht gefunden' });
-    }
-
+    if (rows.length === 0) return res.status(404).json({ error: 'Session nicht gefunden' });
     res.json(rows[0]);
   } catch (error) {
     console.error('Fehler beim Abrufen der Session-Details:', error);
@@ -508,24 +476,17 @@ exports.getSessionErgebnisse = async (req, res) => {
   try {
     const { sessionId } = req.params;
 
-    // Zuerst Session-Info holen für nutzer_id, plan_ids und trainingsplan_typ
-    const [session] = await db.query(`
-      SELECT nutzer_id, standard_plan_id, custom_plan_id, trainingsplan_typ
-      FROM trainings_sessions 
-      WHERE id = ?
-    `, [sessionId]);
+    const [session] = await db.query(
+      'SELECT nutzer_id, standard_plan_id, custom_plan_id, trainingsplan_typ FROM trainings_sessions WHERE id = ?',
+      [sessionId]
+    );
 
-    if (session.length === 0) {
-      return res.status(404).json({ error: 'Session nicht gefunden' });
-    }
+    if (session.length === 0) return res.status(404).json({ error: 'Session nicht gefunden' });
 
     const { nutzer_id, standard_plan_id, custom_plan_id, trainingsplan_typ } = session[0];
-
-    // Ergebnisse laden - unterschiedlich je nach Plantyp
     let rows;
 
     if (trainingsplan_typ === 'custom') {
-      // Custom Plan - exercise source may be standard or user-defined; join accordingly
       [rows] = await db.query(`
         SELECT 
           te.id,
@@ -536,6 +497,8 @@ exports.getSessionErgebnisse = async (req, res) => {
           te.gewicht_kg,
           te.notizen,
           te.erstellt_am,
+          te.ist_dropsatz,
+          te.parent_satz_nummer,
           COALESCE(nu.uebung_name, u.name) as uebung_name,
           COALESCE(nu.zielmuskel, u.zielmuskel) as zielmuskel,
           COALESCE(nu.kategorie, u.kategorie) as kategorie,
@@ -552,7 +515,6 @@ exports.getSessionErgebnisse = async (req, res) => {
         ORDER BY COALESCE(netu.reihenfolge, 999), te.satz_nummer
       `, [custom_plan_id, sessionId]);
     } else {
-      // Standard Plan - mit Historie
       [rows] = await db.query(`
         SELECT 
           te.id,
@@ -563,6 +525,8 @@ exports.getSessionErgebnisse = async (req, res) => {
           te.gewicht_kg,
           te.notizen,
           te.erstellt_am,
+          te.ist_dropsatz,
+          te.parent_satz_nummer,
           u.name as uebung_name,
           u.zielmuskel,
           u.kategorie,
@@ -594,18 +558,11 @@ exports.updateSession = async (req, res) => {
 
     const { sessionId } = req.params;
     const {
-      nutzer_id,
-      trainingsplan_id,
-      trainingsplan_typ,
-      datum,
-      startzeit,
-      endzeit,
-      notizen,
-      ergebnisse,
-      uebungen_reihenfolge
+      nutzer_id, trainingsplan_id, trainingsplan_typ,
+      datum, startzeit, endzeit, notizen,
+      ergebnisse, uebungen_reihenfolge
     } = req.body;
 
-    // 1. Prüfe ob Session dem Nutzer gehört
     const [session] = await connection.query(
       'SELECT nutzer_id, trainingsplan_typ FROM trainings_sessions WHERE id = ?',
       [sessionId]
@@ -621,23 +578,17 @@ exports.updateSession = async (req, res) => {
       return res.status(403).json({ error: 'Keine Berechtigung' });
     }
 
-    const planTyp = trainingsplan_typ || session[0].trainingsplan_typ;
+    const planTyp          = trainingsplan_typ || session[0].trainingsplan_typ;
     const standard_plan_id = planTyp === 'standard' ? trainingsplan_id : null;
-    const custom_plan_id = planTyp === 'custom' ? trainingsplan_id : null;
+    const custom_plan_id   = planTyp === 'custom'   ? trainingsplan_id : null;
 
-    // 2. Session-Details aktualisieren
     await connection.query(
       'UPDATE trainings_sessions SET standard_plan_id = ?, custom_plan_id = ?, trainingsplan_typ = ?, datum = ?, startzeit = ?, endzeit = ?, notizen = ? WHERE id = ?',
       [standard_plan_id, custom_plan_id, planTyp, datum, startzeit, endzeit, notizen, sessionId]
     );
 
-    // 3. Alte Ergebnisse löschen
-    await connection.query(
-      'DELETE FROM trainings_ergebnisse WHERE session_id = ?',
-      [sessionId]
-    );
+    await connection.query('DELETE FROM trainings_ergebnisse WHERE session_id = ?', [sessionId]);
 
-    // 4. Neue Ergebnisse einfügen
     if (ergebnisse && ergebnisse.length > 0) {
       const values = ergebnisse.map(e => [
         sessionId,
@@ -646,29 +597,26 @@ exports.updateSession = async (req, res) => {
         e.wiederholungen,
         e.gewicht_kg,
         e.notizen,
-        e.eigene_uebung || 0
+        e.eigene_uebung      || 0,
+        e.ist_dropsatz       || 0,
+        e.parent_satz_nummer ?? null,  // NEU
       ]);
 
       await connection.query(
-        'INSERT INTO trainings_ergebnisse (session_id, uebung_id, satz_nummer, wiederholungen, gewicht_kg, notizen, eigene_uebung) VALUES ?',
+        'INSERT INTO trainings_ergebnisse (session_id, uebung_id, satz_nummer, wiederholungen, gewicht_kg, notizen, eigene_uebung, ist_dropsatz, parent_satz_nummer) VALUES ?',
         [values]
       );
     }
 
-    // 5. Reihenfolge aktualisieren - FÜR BEIDE PLANTYPEN
     if (uebungen_reihenfolge && uebungen_reihenfolge.length > 0) {
       if (planTyp === 'standard') {
-        // Standard-Plan: Historie-Tabelle
         await connection.query(
           'DELETE FROM nutzer_trainingsplan_historie WHERE nutzer_id = ? AND trainingsplan_id = ?',
           [nutzer_id, trainingsplan_id]
         );
 
         const historieValues = uebungen_reihenfolge.map(u => [
-          nutzer_id,
-          trainingsplan_id,
-          u.uebung_id,
-          u.reihenfolge
+          nutzer_id, trainingsplan_id, u.uebung_id, u.reihenfolge
         ]);
 
         await connection.query(
@@ -676,9 +624,7 @@ exports.updateSession = async (req, res) => {
           [historieValues]
         );
       } else if (planTyp === 'custom') {
-        // Custom-Plan: Reihenfolge in nutzer_eigene_trainingsplan_uebungen aktualisieren
         for (const uebung of uebungen_reihenfolge) {
-          // uebung may include eigene_uebung flag — if not, default to 0
           const eigeneFlag = uebung.eigene_uebung ? 1 : 0;
           await connection.query(
             `UPDATE nutzer_eigene_trainingsplan_uebungen 
@@ -691,11 +637,7 @@ exports.updateSession = async (req, res) => {
     }
 
     await connection.commit();
-
-    res.json({
-      message: 'Training erfolgreich aktualisiert',
-      sessionId: sessionId
-    });
+    res.json({ message: 'Training erfolgreich aktualisiert', sessionId });
 
   } catch (error) {
     await connection.rollback();
@@ -716,7 +658,6 @@ exports.deleteSession = async (req, res) => {
     const { sessionId } = req.params;
     const { nutzer_id } = req.body;
 
-    // Prüfe ob Session dem Nutzer gehört
     const [session] = await connection.query(
       'SELECT nutzer_id FROM trainings_sessions WHERE id = ?',
       [sessionId]
@@ -732,23 +673,11 @@ exports.deleteSession = async (req, res) => {
       return res.status(403).json({ error: 'Keine Berechtigung' });
     }
 
-    // Ergebnisse löschen
-    await connection.query(
-      'DELETE FROM trainings_ergebnisse WHERE session_id = ?',
-      [sessionId]
-    );
-
-    // Session löschen
-    await connection.query(
-      'DELETE FROM trainings_sessions WHERE id = ?',
-      [sessionId]
-    );
+    // ON DELETE CASCADE übernimmt trainings_ergebnisse
+    await connection.query('DELETE FROM trainings_sessions WHERE id = ?', [sessionId]);
 
     await connection.commit();
-
-    res.json({
-      message: 'Training erfolgreich gelöscht'
-    });
+    res.json({ message: 'Training erfolgreich gelöscht' });
 
   } catch (error) {
     await connection.rollback();
@@ -763,61 +692,32 @@ exports.deleteSession = async (req, res) => {
 exports.saveTempSession = async (req, res) => {
   try {
     const {
-      nutzer_id,
-      trainingsplan_id,
-      trainingsplan_typ,
-      gewaehlte_uebungen,
-      ergebnisse,
-      timer_start // Kann null sein
+      nutzer_id, trainingsplan_id, trainingsplan_typ,
+      gewaehlte_uebungen, ergebnisse, timer_start
     } = req.body;
 
-    // Konvertiere ISO 8601 DateTime zu MySQL DATETIME Format
     let mysqlTimerStart = null;
     if (timer_start) {
-      const date = new Date(timer_start);
-      // Konvertiert '2025-10-30T12:47:53.665Z' zu '2025-10-30 12:47:53'
-      mysqlTimerStart = date.toISOString().slice(0, 19).replace('T', ' ');
+      mysqlTimerStart = new Date(timer_start).toISOString().slice(0, 19).replace('T', ' ');
     }
 
-    // Prüfe ob bereits eine Temp-Session existiert
     const [existing] = await db.query(
       'SELECT id FROM temp_trainings_sessions WHERE nutzer_id = ?',
       [nutzer_id]
     );
 
     if (existing.length > 0) {
-      // UPDATE
       await db.query(
         `UPDATE temp_trainings_sessions 
-         SET trainingsplan_id = ?, 
-             trainingsplan_typ = ?, 
-             gewaehlte_uebungen = ?, 
-             ergebnisse = ?,
-             timer_start = ?
+         SET trainingsplan_id = ?, trainingsplan_typ = ?, gewaehlte_uebungen = ?, ergebnisse = ?, timer_start = ?
          WHERE nutzer_id = ?`,
-        [
-          trainingsplan_id,
-          trainingsplan_typ,
-          JSON.stringify(gewaehlte_uebungen),
-          JSON.stringify(ergebnisse),
-          mysqlTimerStart, // Konvertiertes DateTime oder null
-          nutzer_id
-        ]
+        [trainingsplan_id, trainingsplan_typ, JSON.stringify(gewaehlte_uebungen), JSON.stringify(ergebnisse), mysqlTimerStart, nutzer_id]
       );
     } else {
-      // INSERT
       await db.query(
-        `INSERT INTO temp_trainings_sessions 
-         (nutzer_id, trainingsplan_id, trainingsplan_typ, gewaehlte_uebungen, ergebnisse, timer_start) 
+        `INSERT INTO temp_trainings_sessions (nutzer_id, trainingsplan_id, trainingsplan_typ, gewaehlte_uebungen, ergebnisse, timer_start)
          VALUES (?, ?, ?, ?, ?, ?)`,
-        [
-          nutzer_id,
-          trainingsplan_id,
-          trainingsplan_typ,
-          JSON.stringify(gewaehlte_uebungen),
-          JSON.stringify(ergebnisse),
-          mysqlTimerStart // Konvertiertes DateTime oder null
-        ]
+        [nutzer_id, trainingsplan_id, trainingsplan_typ, JSON.stringify(gewaehlte_uebungen), JSON.stringify(ergebnisse), mysqlTimerStart]
       );
     }
 
@@ -838,25 +738,21 @@ exports.getTempSession = async (req, res) => {
       [nutzerId]
     );
 
-    if (rows.length === 0) {
-      return res.json(null);
-    }
+    if (rows.length === 0) return res.json(null);
 
     const session = rows[0];
 
-    // Konvertiere MySQL DATETIME zurück zu ISO 8601 String (falls vorhanden)
     let timerStartISO = null;
     if (session.timer_start) {
-      const utcDate = new Date(session.timer_start + 'Z');
-      timerStartISO = utcDate.toISOString();
+      timerStartISO = new Date(session.timer_start + 'Z').toISOString();
     }
 
     res.json({
-      trainingsplan_id: session.trainingsplan_id,
-      trainingsplan_typ: session.trainingsplan_typ,
+      trainingsplan_id:   session.trainingsplan_id,
+      trainingsplan_typ:  session.trainingsplan_typ,
       gewaehlte_uebungen: session.gewaehlte_uebungen,
-      ergebnisse: session.ergebnisse,
-      timer_start: timerStartISO // ISO 8601 Format für Frontend
+      ergebnisse:         session.ergebnisse,
+      timer_start:        timerStartISO,
     });
   } catch (error) {
     console.error('Fehler beim Laden der Temp-Session:', error);
@@ -868,12 +764,7 @@ exports.getTempSession = async (req, res) => {
 exports.deleteTempSession = async (req, res) => {
   try {
     const { nutzerId } = req.params;
-
-    await db.query(
-      'DELETE FROM temp_trainings_sessions WHERE nutzer_id = ?',
-      [nutzerId]
-    );
-
+    await db.query('DELETE FROM temp_trainings_sessions WHERE nutzer_id = ?', [nutzerId]);
     res.json({ message: 'Temp-Session gelöscht' });
   } catch (error) {
     console.error('Fehler beim Löschen der Temp-Session:', error);

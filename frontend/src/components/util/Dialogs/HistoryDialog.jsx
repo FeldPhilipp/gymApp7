@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -9,14 +9,82 @@ import {
   Typography,
   Box,
   Divider,
+  Collapse,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
+
+function SatzMitDrops({ satz, idx, drops }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Box sx={{ mb: 0.5 }}>
+      <Box display="flex" alignItems="center" gap={0.75}>
+        <Typography variant="body2" color="text.secondary">
+          Satz {idx + 1}: {satz.wiederholungen} Wdh @ {satz.gewicht_kg}kg
+        </Typography>
+        {drops.length > 0 && (
+          <Button
+            size="small"
+            onClick={() => setOpen(o => !o)}
+            sx={{
+              minWidth: 0,
+              p: '0px 6px',
+              fontSize: '0.7rem',
+              color: 'warning.main',
+              textTransform: 'none',
+              lineHeight: 1.4,
+              border: '1px solid',
+              borderColor: 'warning.main',
+              borderRadius: '6px',
+            }}
+          >
+            {open ? 'Drop ▲' : `${drops.length} Drop ▼`}
+          </Button>
+        )}
+      </Box>
+      <Collapse in={open}>
+        {drops.map((ds, dsIdx) => (
+          <Typography
+            key={`drop-${dsIdx}`}
+            variant="body2"
+            sx={{ pl: 2, mb: 0.25, color: 'warning.main', fontSize: '0.8rem' }}
+          >
+            Dropsatz {dsIdx + 1}: {ds.wiederholungen} Wdh @ {ds.gewicht_kg}kg
+          </Typography>
+        ))}
+      </Collapse>
+    </Box>
+  );
+}
+
+function SessionSaetze({ saetze }) {
+  const normaleSaetze = saetze.filter(s => !s.ist_dropsatz);
+  const dropMap = saetze
+    .filter(s => s.ist_dropsatz)
+    .reduce((acc, ds) => {
+      const key = String(ds.parent_satz_nummer);
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(ds);
+      return acc;
+    }, {});
+
+  return (
+    <>
+      {normaleSaetze.map((satz, idx) => (
+        <SatzMitDrops
+          key={`satz-${idx}`}
+          satz={satz}
+          idx={idx}
+          drops={dropMap[String(satz.satz_nummer)] || []}
+        />
+      ))}
+    </>
+  );
+}
 
 const HistoryDialog = ({ open, onClose, uebung, historyData = [] }) => {
   const groupedSessions = Array.isArray(historyData)
     ? historyData.reduce((acc, result) => {
         const sessionKey = result.session_id ?? `${result.erstellt_am}-${result.satz_nummer}`;
-
         if (!acc[sessionKey]) {
           acc[sessionKey] = {
             session_id: result.session_id,
@@ -24,7 +92,6 @@ const HistoryDialog = ({ open, onClose, uebung, historyData = [] }) => {
             saetze: [],
           };
         }
-
         acc[sessionKey].saetze.push(result);
         return acc;
       }, {})
@@ -74,29 +141,25 @@ const HistoryDialog = ({ open, onClose, uebung, historyData = [] }) => {
             Keine Historie verfügbar.
           </Typography>
         ) : (
-          sessions.map((session, index) => (
-            <Box key={`session-${index}`} sx={{ mb: index < sessions.length - 1 ? 2.5 : 0 }}>
-              <Box sx={{ mb: 1 }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                  {formatDate(session.timestamp)} • {session.saetze.length} Sätze
-                </Typography>
+          sessions.map((session, index) => {
+            const anzNormal = session.saetze.filter(s => !s.ist_dropsatz).length;
+            return (
+              <Box key={`session-${index}`} sx={{ mb: index < sessions.length - 1 ? 2.5 : 0 }}>
+                <Box sx={{ mb: 1 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                    {formatDate(session.timestamp)}
+                    {' • '}{anzNormal} Sätze
+                  </Typography>
+                </Box>
+
+                <SessionSaetze saetze={session.saetze} />
+
+                {index < sessions.length - 1 && (
+                  <Divider sx={{ mt: 1.5, borderColor: 'rgba(148, 163, 184, 0.15)' }} />
+                )}
               </Box>
-
-              {session.saetze
-                .sort((a, b) => a.satz_nummer - b.satz_nummer)
-                .map((satz, satzIndex) => (
-                  <Box key={`satz-${satzIndex}`} sx={{ mb: 1 }}>
-                    <Typography variant="body2" color="text.secondary">
-                      Satz {satz.satz_nummer}: {satz.wiederholungen} Wdh @ {satz.gewicht_kg}kg
-                    </Typography>
-                  </Box>
-                ))}
-
-              {index < sessions.length - 1 && (
-                <Divider sx={{ mt: 1.5, borderColor: 'rgba(148, 163, 184, 0.15)' }} />
-              )}
-            </Box>
-          ))
+            );
+          })
         )}
       </DialogContent>
 
