@@ -10,7 +10,7 @@ import {
   LinearProgress,
   List,
   ListItem,
-  ListItemText, 
+  ListItemText,
   Avatar,
   Divider,
   ToggleButtonGroup,
@@ -233,7 +233,7 @@ function HomeDark() {
                 message={message.text}
                 onClose={() => {
                   setShowNotification(true);
-                  setMessage({type: "", text: ""});
+                  setMessage({ type: "", text: "" });
                 }}
               />
             )}
@@ -458,75 +458,7 @@ function HomeDark() {
                       Noch keine Trainings vorhanden
                     </Typography>
                   ),
-                }
-                ,
-                // {
-                //   title: 'Beste Fortschritte',
-                //   icon: <TrendingUpIcon fontSize="small" />,
-                //   color: '#166534',
-                //   hoverColor: '#34d399',
-                //   content: stats?.verbesserungen?.length > 0 ? (
-                //     <List dense sx={{ overflow: 'auto', flex: 1 }}>
-                //       {stats.verbesserungen.slice(0, 5).map((v, idx) =>
-                //         v && v.uebung_name ? (
-                //           <ListItem
-                //             key={idx}
-                //             sx={{
-                //               px: 0,
-                //               py: 0.5,
-                //             }}
-                //           >
-                //             <ListItemText
-                //               primary={
-                //                 <Box>
-                //                   <Typography variant="body2" fontWeight={600} color="#fff">
-                //                     {v.uebung_name}
-                //                   </Typography>
-                //                   {ansicht === 'gruppe' && (
-                //                     <Typography variant="caption" color="#6ee7b7">
-                //                       {v.vname || ''} {v.nname || ''}
-                //                     </Typography>
-                //                   )}
-                //                 </Box>
-                //               }
-                //               secondary={
-                //                 <Box>
-                //                   <Typography variant="caption" color="#6ee7b7">
-                //                     {v.zielmuskel || 'Unbekannt'}
-                //                   </Typography>
-                //                   <Box display="flex" alignItems="center" gap={0.5} mt={0.3}>
-                //                     <Typography variant="caption" color="#6ee7b7">
-                //                       {v.vor_30_tagen || 0}kg
-                //                     </Typography>
-                //                     <Typography variant="caption" color="#6ee7b7">→</Typography>
-                //                     <Typography variant="caption" color="#34d399" fontWeight={600}>
-                //                       {v.aktuell || 0}kg
-                //                     </Typography>
-                //                     <Chip
-                //                       label={`+${v.steigerung || 0}kg`}
-                //                       size="small"
-                //                       sx={{
-                //                         backgroundColor: '#166534',
-                //                         color: '#ecfdf5',
-                //                         height: 18,
-                //                         fontSize: '0.65rem',
-                //                       }}
-                //                     />
-                //                   </Box>
-                //                 </Box>
-                //               }
-                //             />
-                //           </ListItem>
-                //         ) : null
-                //       )}
-                //     </List>
-                //   ) : (
-                //     <Typography color="#6ee7b7" align="center" variant="caption" sx={{ py: 2 }}>
-                //       Noch keine Verbesserungen erfasst
-                //     </Typography>
-                //   ),
-                // },
-                {
+                }, {
                   title: `Highscores ${ansicht === 'gruppe' ? '(Gruppe)' : ''}`,
                   icon: <EmojiEventsIcon fontSize="small" />,
                   color: '#1e3a8a',

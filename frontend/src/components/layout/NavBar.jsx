@@ -32,6 +32,7 @@ import { darkTheme } from '../../theme/darkTheme';
 import BenachrichtigungenDropdown from './BenachrichtigungenDropdown';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import FeedbackIcon from '@mui/icons-material/Feedback';
+import CalculateIcon from '@mui/icons-material/Calculate';
 import { UserApi } from '../../services/api';
 import { useDrawer } from '../context/DrawerContext';
 
@@ -76,6 +77,7 @@ const NavBar = () => {
       { label: 'Home', path: '/dashboard', icon: <HomeIcon /> },
       { label: 'Gruppen', path: '/gruppen', icon: <GroupIcon /> },
       { label: 'Training', path: '/addTraining', icon: <FitnessCenterIcon /> },
+      { label: 'Max Rep', path: '/maxRepCalc', icon: <CalculateIcon /> },
       { label: 'Tracker', path: '/tracker', icon: <ScaleIcon /> },
       { label: 'Feedback', path: '/feedback', icon: <FeedbackIcon /> },
       ...(isAdmin ? [{ label: 'Admin', path: '/admin', icon: <AdminPanelSettingsIcon /> }] : []),

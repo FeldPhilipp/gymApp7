@@ -6,31 +6,10 @@ import {
     Typography,
     Grid,
     LinearProgress,
-    Chip,
-    Divider,
-    Alert,
     CircularProgress,
 } from '@mui/material';
-import {
-    TrendingUp,
-    TrendingDown,
-    LocalFireDepartment,
-    FitnessCenter,
-    CalendarToday,
-    Timeline,
-} from '@mui/icons-material';
-import {
-    LineChart,
-    Line,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-    ResponsiveContainer,
-    ReferenceLine,
-    Area,
-    ComposedChart,
-} from 'recharts';
+import { Timeline } from '@mui/icons-material';
+import { ResponsiveLine } from '@nivo/line';
 import { GewichtApi } from '../../services/api';
 import Notification from '../util/notifications/Notification';
 
@@ -38,8 +17,7 @@ function GewichtStatistik({ nutzerId, compact = false }) {
     const [showNotification, setShowNotification] = useState(false);
     const [loading, setLoading] = useState(true);
     const [statistik, setStatistik] = useState(null);
-    const [message, setMessage] = useState({ type: "", text: "" });
-    const [chartReady, setChartReady] = useState(false);
+    const [message, setMessage] = useState({ type: '', text: '' });
 
     useEffect(() => {
         if (nutzerId) {
@@ -47,23 +25,15 @@ function GewichtStatistik({ nutzerId, compact = false }) {
         }
     }, [nutzerId]);
 
-    useEffect(() => {
-        if (statistik && !loading) {
-            const timer = setTimeout(() => setChartReady(true), 100);
-            return () => clearTimeout(timer);
-        }
-    }, [statistik, loading]);
-
     const fetchStatistik = async () => {
         try {
             setLoading(true);
-            setChartReady(false);
             const response = await GewichtApi.getErweiterteStats(nutzerId);
             setStatistik(response.data);
-            setMessage({ type: "success", text: "Statistik erfolgreich geladen" });
+            setMessage({ type: 'success', text: 'Statistik erfolgreich geladen' });
         } catch (err) {
             console.error('Fehler beim Laden der Statistik:', err);
-            setMessage({ type: "error", text: "Fehler beim Laden der Statistik" });
+            setMessage({ type: 'error', text: 'Fehler beim Laden der Statistik' });
         } finally {
             setLoading(false);
         }
@@ -73,12 +43,9 @@ function GewichtStatistik({ nutzerId, compact = false }) {
         if (!statistik) return null;
 
         const { nutzer, kalorienBedarf } = statistik;
-
-        // Use current weight if available, fallback to start weight
         const currentWeight = Number(statistik.aktuelles_gewicht ?? statistik.start_gewicht ?? 0);
         const height = Number(nutzer?.groesse ?? 0);
 
-        // Accurate age calculation (consider month/day)
         let alter = 0;
         try {
             if (nutzer?.geb_datum) {
@@ -89,21 +56,18 @@ function GewichtStatistik({ nutzerId, compact = false }) {
                 if (m < 0 || (m === 0 && today.getDate() < bd.getDate())) alter--;
             }
         } catch (e) {
-            alter = new Date().getFullYear() - new Date().getFullYear();
+            alter = 0;
         }
 
-        // Mifflin-St Jeor BMR
         let bmr = 0;
         if (nutzer?.geschlecht === 'm') {
             bmr = 10 * currentWeight + 6.25 * height - 5 * alter + 5;
         } else if (nutzer?.geschlecht === 'w') {
             bmr = 10 * currentWeight + 6.25 * height - 5 * alter - 161;
         } else {
-            // approximate average for 'divers' if gender not specified
             bmr = 10 * currentWeight + 6.25 * height - 5 * alter - 78;
         }
 
-        // Aktivitätslevel-Multiplikatoren (defaults)
         const aktivitaetsMultiplikator = {
             sedentary: 1.2,
             light: 1.375,
@@ -113,154 +77,150 @@ function GewichtStatistik({ nutzerId, compact = false }) {
         };
 
         const activityKey = nutzer?.aktivitaetslevel || 'moderate';
-        const multiplier = aktivitaetsMultiplikator[activityKey] || aktivitaetsMultiplikator['moderate'];
-
+        const multiplier = aktivitaetsMultiplikator[activityKey] ?? aktivitaetsMultiplikator['moderate'];
         const erhaltungskalorien = Math.round(bmr * multiplier);
 
-        // Determine recommended deficit/surplus: use API value if provided, otherwise sensible defaults based on recommendation
         const apiDefizit = Number(kalorienBedarf?.defizit ?? NaN);
         const emp = kalorienBedarf?.empfehlung || 'moderate';
-        const defaultDefizitByEmp = {
-            aggressive: 800,
-            moderate: 500,
-            slow: 250,
-        };
-
+        const defaultDefizitByEmp = { aggressive: 800, moderate: 500, slow: 250 };
         const defaultDefizit = defaultDefizitByEmp[emp] ?? 500;
         const defizit = Number.isFinite(apiDefizit) ? Math.abs(apiDefizit) : defaultDefizit;
 
-        // Decide if user needs deficit (ziel < aktuell) or surplus (ziel > aktuell)
         const ziel = Number(statistik.ziel_gewicht ?? NaN);
-        const weightDiff = Number.isFinite(ziel) && Number.isFinite(currentWeight) ? ziel - currentWeight : 0;
+        const weightDiff =
+            Number.isFinite(ziel) && Number.isFinite(currentWeight) ? ziel - currentWeight : 0;
 
         let zielKalorien = erhaltungskalorien;
         let mode = 'maintain';
         if (Number.isFinite(weightDiff) && weightDiff < 0) {
-            // need to lose weight => deficit
             zielKalorien = Math.round(erhaltungskalorien - Math.abs(defizit));
             mode = 'deficit';
         } else if (Number.isFinite(weightDiff) && weightDiff > 0) {
-            // need to gain weight => surplus
             zielKalorien = Math.round(erhaltungskalorien + Math.abs(defizit));
             mode = 'surplus';
         }
 
-        return {
-            erhaltung: erhaltungskalorien,
-            zielKalorien,
-            defizit: defizit,
-            empfehlung: emp,
-            mode,
-        };
+        return { erhaltung: erhaltungskalorien, zielKalorien, defizit, empfehlung: emp, mode };
     };
 
-    const formatDate = (dateString) => {
-        return new Date(dateString).toLocaleDateString('de-DE', {
+    const formatDate = (dateString) =>
+        new Date(dateString).toLocaleDateString('de-DE', {
             day: '2-digit',
             month: 'short',
         });
-    };
 
-    const CustomTooltip = ({ active, payload }) => {
-        if (active && payload && payload.length) {
-            return (
-                <Box
-                    sx={{
-                        bgcolor: 'rgba(15, 23, 42, 0.95)',
-                        border: '1px solid rgba(59, 130, 246, 0.3)',
-                        borderRadius: '16px',
-                        p: 1.5,
-                    }}
-                >
-                    <Typography variant="caption" sx={{ color: '#93c5fd', display: 'block', mb: 0.5 }}>
-                        {formatDate(payload[0].payload.datum)}
-                    </Typography>
-                    <Typography variant="body2" fontWeight={600} sx={{ color: '#e0f2fe' }}>
-                        {payload[0].value} kg
-                    </Typography>
-                </Box>
-            );
+    // Nivo erwartet das Format: [{ id, data: [{ x, y }] }]
+    const buildNivoData = (verlauf, startGewicht, startDatum) => {
+        const raw = Array.isArray(verlauf) ? [...verlauf] : [];
+
+        // Startpunkt ggf. voranstellen
+        if (startGewicht != null && startGewicht !== '') {
+            const sw = Number(startGewicht);
+            const alreadyIn = raw.some((d) => Number(d.gewicht) === sw);
+            if (!alreadyIn) {
+                const datum =
+                    startDatum || (raw.length ? raw[0].datum : new Date().toISOString());
+                raw.unshift({ datum, gewicht: sw });
+            }
         }
-        return null;
+
+        return [
+            {
+                id: 'gewicht',
+                color: '#3b82f6',
+                data: raw.map((d) => ({
+                    x: d.datum,
+                    y: Number(d.gewicht),
+                })),
+            },
+        ];
     };
 
     if (loading) {
         return (
-            <Card sx={{
-                borderRadius: '16px',
-                background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
-                border: '1px solid rgba(59, 130, 246, 0.2)'
-            }}>
-                <CircularProgress sx={{ position: "absolute", top: "45%", left: "45%", display: 'block', mx: 'auto', mb: 2 }} />
+            <Card
+                sx={{
+                    borderRadius: '16px',
+                    background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+                    border: '1px solid rgba(59, 130, 246, 0.2)',
+                    minHeight: 200,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                }}
+            >
+                <CircularProgress />
             </Card>
         );
     }
 
     if (!statistik) return null;
 
-    const kalorien = berechneKalorien();
     const fortschritt = statistik.fortschritt || 0;
     const verlauf = statistik.gewichtsverlauf || [];
+    const nivoData = buildNivoData(
+        verlauf,
+        statistik.start_gewicht,
+        statistik.start_datum,
+    );
 
-    // Ensure the chart data always starts with the provided start weight (if available).
-    // If start_gewicht exists and is not already the first point in the verlauf, prepend it.
-    const chartData = (() => {
-        try {
-            const data = Array.isArray(verlauf) ? [...verlauf] : [];
-            const hasStart = statistik.start_gewicht !== undefined && statistik.start_gewicht !== null && statistik.start_gewicht !== "";
-            if (!hasStart) return data;
+    // Y-Achsen-Bereich mit etwas Puffer
+    const alleGewichte = nivoData[0].data.map((d) => d.y);
+    const minY = Math.min(...alleGewichte, Number(statistik.ziel_gewicht ?? Infinity)) - 2;
+    const maxY = Math.max(...alleGewichte, Number(statistik.ziel_gewicht ?? -Infinity)) + 2;
 
-            const startWeight = Number(statistik.start_gewicht);
-            // If the first data point already equals start weight, use as-is
-            if (data.length > 0 && Number(data[0].gewicht) === startWeight) return data;
+    // Ziel-Linie als Nivo-Marker
+    const zielMarker = statistik.ziel_gewicht != null
+        ? [
+            {
+                axis: 'y',
+                value: Number(statistik.ziel_gewicht),
+                lineStyle: {
+                    stroke: '#22c55e',
+                    strokeWidth: 1.5,
+                    strokeDasharray: '6 4',
+                },
+                legend: `Ziel ${Number(statistik.ziel_gewicht).toFixed(1)} kg`,
+                legendPosition: 'bottom-right',
+                legendOrientation: 'horizontal',
+                textStyle: { fill: '#22c55e', fontSize: 11 },
+            },
+        ]
+        : [];
 
-            // If any point already matches the start weight, don't duplicate it at the front
-            const alreadyIncluded = data.some(d => Number(d.gewicht) === startWeight);
-            if (alreadyIncluded) return data;
-
-            // Choose a sensible datum for the start point:
-            // prefer statistik.start_datum, otherwise the earliest datum in verlauf, otherwise today
-            let startDatum = statistik.start_datum || (data.length && data[0].datum) || new Date().toISOString();
-
-            // Normalize to ISO string if a Date object was accidentally provided
-            try {
-                if (startDatum instanceof Date) startDatum = startDatum.toISOString();
-            } catch (e) {
-                // ignore
-            }
-
-            data.unshift({ datum: startDatum, gewicht: startWeight });
-            return data;
-        } catch (e) {
-            console.error('Fehler beim Vorbereiten der Chart-Daten:', e);
-            return verlauf;
-        }
-    })();
+    // Anzahl sichtbarer X-Ticks reduzieren auf mobil
+    const tickCount = verlauf.length <= 6 ? verlauf.length : 4;
 
     return (
         <Box sx={{ mb: 3 }}>
-            {message.status === "error" && (
+            {message.type === 'error' && (
                 <Notification
                     type={message.type}
                     message={message.text}
                     onClose={() => {
                         setShowNotification(true);
-                        setMessage("");
+                        setMessage('');
                     }}
                 />
-            )
-            }
-            {/* Haupt-Statistik Card */}
-            <Card sx={{
-                mb: 3,
-                borderRadius: '16px',
-                background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
-                border: '1px solid rgba(59, 130, 246, 0.2)'
-            }}>
-                <CardContent sx={{ p: 3 }}>
+            )}
+
+            <Card
+                sx={{
+                    mb: 3,
+                    borderRadius: '16px',
+                    background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+                    border: '1px solid rgba(59, 130, 246, 0.2)',
+                }}
+            >
+                <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
+                    {/* Header */}
                     <Box display="flex" alignItems="center" gap={2} mb={3}>
                         <Timeline sx={{ color: '#3b82f6', fontSize: 32 }} />
-                        <Typography variant="h5" fontWeight={700} sx={{ color: '#e0f2fe' }}>
+                        <Typography
+                            variant="h5"
+                            fontWeight={700}
+                            sx={{ color: '#e0f2fe', fontSize: { xs: '1.1rem', sm: '1.5rem' } }}
+                        >
                             Gewichtsverlauf & Analyse
                         </Typography>
                     </Box>
@@ -280,101 +240,185 @@ function GewichtStatistik({ nutzerId, compact = false }) {
                             value={Math.min(fortschritt, 100)}
                             sx={{
                                 height: 8,
-                                borderRadius: "16px",
+                                borderRadius: '16px',
                                 bgcolor: 'rgba(59, 130, 246, 0.1)',
                                 '& .MuiLinearProgress-bar': {
-                                    borderRadius: "16px",
-                                    background: fortschritt >= 100
-                                        ? 'linear-gradient(90deg, #22c55e 0%, #16a34a 100%)'
-                                        : 'linear-gradient(90deg, #3b82f6 0%, #1e40af 100%)'
-                                }
+                                    borderRadius: '16px',
+                                    background:
+                                        fortschritt >= 100
+                                            ? 'linear-gradient(90deg, #22c55e 0%, #16a34a 100%)'
+                                            : 'linear-gradient(90deg, #3b82f6 0%, #1e40af 100%)',
+                                },
                             }}
                         />
-                        <Box display="flex" flexDirection={{ xs: 'column', sm: 'row' }} justifyContent="space-between" gap={{ xs: 0.5, sm: 0 }} mt={1}>
-                            <Typography variant="caption" sx={{ color: '#64748b', fontSize: { xs: '0.65rem', sm: '0.75rem' } }}>
+                        <Box
+                            display="flex"
+                            flexDirection={{ xs: 'column', sm: 'row' }}
+                            justifyContent="space-between"
+                            gap={{ xs: 0.5, sm: 0 }}
+                            mt={1}
+                        >
+                            <Typography
+                                variant="caption"
+                                sx={{ color: '#64748b', fontSize: { xs: '0.65rem', sm: '0.75rem' } }}
+                            >
                                 Start: {statistik.start_gewicht?.toFixed(1)} kg
                             </Typography>
-                            <Typography variant="caption" sx={{ color: '#64748b', fontSize: { xs: '0.65rem', sm: '0.75rem' } }}>
+                            <Typography
+                                variant="caption"
+                                sx={{ color: '#64748b', fontSize: { xs: '0.65rem', sm: '0.75rem' } }}
+                            >
                                 Aktuell: {statistik.aktuelles_gewicht?.toFixed(1)} kg
                             </Typography>
-                            <Typography variant="caption" sx={{ color: '#64748b', fontSize: { xs: '0.65rem', sm: '0.75rem' } }}>
+                            <Typography
+                                variant="caption"
+                                sx={{ color: '#64748b', fontSize: { xs: '0.65rem', sm: '0.75rem' } }}
+                            >
                                 Ziel: {statistik.ziel_gewicht?.toFixed(1)} kg
                             </Typography>
                         </Box>
                     </Box>
 
-                    {/* Gewichtsverlauf Chart */}
+                    {/* Nivo Line Chart */}
                     {verlauf.length > 0 && (
-                        <Box sx={{
-                            mb: 3,
-                            height: compact ? 250 : 350,
-                            minHeight: compact ? 250 : 350,
-                            width: '100%',
-                            position: 'relative'
-                        }}>
-                            {!chartReady ? (
-                                <Box sx={{
-                                    height: '100%',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center'
-                                }}>
-                                    <CircularProgress size={40} />
-                                </Box>
-                            ) : (
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <ComposedChart
-                                        data={chartData}
-                                        margin={{ top: 5, right: 20, left: 0, bottom: 5 }}
+                        <Box
+                            sx={{
+                                height: compact ? 220 : 300,
+                                width: '100%',
+                                minWidth: 0,
+                                position: 'relative',
+                            }}
+                        >
+                            <ResponsiveLine
+                                data={nivoData}
+                                margin={{
+                                    top: 10,
+                                    // Rechts mehr Platz für Ziel-Label
+                                    right: 6,
+                                    bottom: 50,
+                                    // Links schmaler auf Mobile halten
+                                    left: 30,
+                                }}
+                                // X-Achse ist ein Datum-String → als Kategorie behandeln
+                                xScale={{ type: 'point' }}
+                                yScale={{
+                                    type: 'linear',
+                                    min: minY,
+                                    max: maxY,
+                                    stacked: false,
+                                }}
+                                // Kurve leicht glätten
+                                curve="monotoneX"
+                                // Achsen-Stil
+                                axisBottom={{
+                                    tickSize: 4,
+                                    tickPadding: 6,
+                                    tickRotation: -35,
+                                    format: (v) => formatDate(v),
+                                    // Nur jeden n-ten Tick zeigen
+                                    tickValues: nivoData[0].data
+                                        .filter((_, i) => {
+                                            const total = nivoData[0].data.length;
+                                            if (total <= tickCount) return true;
+                                            const step = Math.ceil(total / tickCount);
+                                            return i % step === 0 || i === total - 1;
+                                        })
+                                        .map((d) => d.x),
+                                }}
+                                axisLeft={{
+                                    tickSize: 4,
+                                    tickPadding: 6,
+                                    tickRotation: 0,
+                                    format: (v) => `${v}`,
+                                    tickCount: 5,
+                                }}
+                                // Grid
+                                enableGridX={false}
+                                gridYValues={5}
+                                theme={{
+                                    grid: {
+                                        line: {
+                                            stroke: 'rgba(59, 130, 246, 0.1)',
+                                            strokeWidth: 1,
+                                        },
+                                    },
+                                    axis: {
+                                        ticks: {
+                                            text: {
+                                                fill: '#64748b',
+                                                fontSize: 11,
+                                            },
+                                            line: { stroke: '#64748b' },
+                                        },
+                                        domain: {
+                                            line: { stroke: '#334155' },
+                                        },
+                                    },
+                                    crosshair: {
+                                        line: {
+                                            stroke: '#3b82f6',
+                                            strokeWidth: 1,
+                                            strokeOpacity: 0.5,
+                                        },
+                                    },
+                                    tooltip: {
+                                        container: {
+                                            background: 'rgba(15, 23, 42, 0.95)',
+                                            border: '1px solid rgba(59, 130, 246, 0.3)',
+                                            borderRadius: '12px',
+                                            padding: '8px 12px',
+                                            color: '#e0f2fe',
+                                            fontSize: 13,
+                                        },
+                                    },
+                                }}
+                                // Linie
+                                colors={['#3b82f6']}
+                                lineWidth={3}
+                                // Punkte – auf Mobile etwas kleiner
+                                enablePoints={true}
+                                pointSize={6}
+                                pointColor="#3b82f6"
+                                pointBorderWidth={2}
+                                pointBorderColor="#1e293b"
+                                // Area unter der Linie
+                                enableArea={true}
+                                areaOpacity={0.15}
+                                // Tooltip
+                                useMesh={true}
+                                tooltip={({ point }) => (
+                                    <Box
+                                        sx={{
+                                            bgcolor: 'rgba(15, 23, 42, 0.95)',
+                                            border: '1px solid rgba(59, 130, 246, 0.3)',
+                                            borderRadius: '12px',
+                                            px: 1.5,
+                                            py: 1,
+                                        }}
                                     >
-                                        <defs>
-                                            <linearGradient id="gewichtGradient" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                                                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                                            </linearGradient>
-                                        </defs>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(59, 130, 246, 0.1)" />
-                                        <XAxis
-                                            dataKey="datum"
-                                            tickFormatter={formatDate}
-                                            stroke="#64748b"
-                                            style={{ fontSize: '12px' }}
-                                        />
-                                        <YAxis
-                                            stroke="#64748b"
-                                            style={{ fontSize: '12px' }}
-                                            domain={['dataMin - 2', 'dataMax + 2']}
-                                        />
-                                        <Tooltip content={<CustomTooltip />} />
-                                        <ReferenceLine
-                                            y={statistik.ziel_gewicht}
-                                            stroke="#22c55e"
-                                            strokeDasharray="5 5"
-                                            label={{
-                                                value: 'Ziel',
-                                                fill: '#22c55e',
-                                                fontSize: 12,
-                                                position: 'right'
-                                            }}
-                                        />
-                                        <Area
-                                            type="monotone"
-                                            dataKey="gewicht"
-                                            stroke="#3b82f6"
-                                            strokeWidth={3}
-                                            fill="url(#gewichtGradient)"
-                                        />
-                                        <Line
-                                            type="monotone"
-                                            dataKey="gewicht"
-                                            stroke="#3b82f6"
-                                            strokeWidth={3}
-                                            dot={{ fill: '#3b82f6', r: 4 }}
-                                            activeDot={{ r: 6 }}
-                                        />
-                                    </ComposedChart>
-                                </ResponsiveContainer>
-                            )}
+                                        <Typography
+                                            variant="caption"
+                                            sx={{ color: '#93c5fd', display: 'block', mb: 0.3 }}
+                                        >
+                                            {formatDate(point.data.x)}
+                                        </Typography>
+                                        <Typography
+                                            variant="body2"
+                                            fontWeight={600}
+                                            sx={{ color: '#e0f2fe' }}
+                                        >
+                                            {Number(point.data.y).toFixed(1)} kg
+                                        </Typography>
+                                    </Box>
+                                )}
+                                // Legende ausblenden (wird oben textuell angezeigt)
+                                legends={[]}
+                                // Ziel-Linie
+                                markers={zielMarker}
+                                // Kein animiertes Re-render bei Resize (besser für Mobile)
+                                animate={true}
+                                motionConfig="gentle"
+                            />
                         </Box>
                     )}
                 </CardContent>

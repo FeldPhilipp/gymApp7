@@ -27,6 +27,7 @@ import { Box, Typography, Button } from '@mui/material';
 import GewichtTrackingPage from './components/pages/features/GewichtTrackingPage';
 import { DrawerProvider } from './components/context/DrawerContext';
 import AllHighscores from './components/pages/features/AllHighscores';
+import OneRepMaxCalc from './components/pages/features/OneRepMaxCalc';
 import Kommentare from './components/shared/Kommentare';
 import {
   ProtectedGroupRoute,
@@ -259,6 +260,7 @@ function App() {
                 <Route path='/tracker' element={<GewichtTrackingPage />} />
                 <Route path='/allHighscores/:gruppeId' element={<ProtectedGroupRoute><AllHighscores /></ProtectedGroupRoute>} />
                 <Route path='/user/uebung-erstellen' element={<ProtectedUserRoute><UserUebung /></ProtectedUserRoute>} />
+                <Route path='/maxRepCalc' element={<ProtectedUserRoute><OneRepMaxCalc /></ProtectedUserRoute>} />
               </Routes>
             </BrowserRouter>
           </DrawerProvider>
