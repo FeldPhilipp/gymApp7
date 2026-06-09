@@ -37,7 +37,7 @@ function SatzMitDrops({ satz, idx, drops }) {
               borderRadius: '6px',
             }}
           >
-            {open ? 'Drop ▲' : `${drops.length} Drop ▼`}
+            {open ? '▲' : `${drops.length} ▼`}
           </Button>
         )}
       </Box>
