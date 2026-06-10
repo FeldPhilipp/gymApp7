@@ -42,6 +42,7 @@ import { darkTheme } from "../../../theme/darkTheme";
 import { GewichtApi } from "../../../services/api";
 import { useAuth } from "../../context/AuthContext";
 import GewichtStatistik from '../../shared/GewichtStatistik';
+import GewichtWochenVerlauf from '../../shared/components/GewichtWochenVerlauf';
 import NavBarBot from "../../layout/NavBarBot";
 import LoadingNavBarBot from '../../layout/LoadingNavBarBot';
 import BackButton from "../../util/buttons/BackButton";
@@ -233,127 +234,6 @@ function GewichtTrackingPage() {
                                 }}
                             />
                         )}
-
-                        {/* Gewicht eintragen moved to floating dialog (opened via NavBarBot main button) */}
-
-                        {/* Verlauf Tabelle */}
-                        {/* <Card sx={{
-                            borderRadius: "16px",
-                            background: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)",
-                            border: "1px solid rgba(34, 197, 94, 0.2)"
-                        }}>
-                            <CardContent sx={{ p: 3 }}>
-                                <Box display="flex" alignItems="center" gap={2} mb={3}>
-                                    <HistoryIcon sx={{ color: "#22c55e", fontSize: 28 }} />
-                                    <Typography variant="h6" fontWeight={700} sx={{ color: "#e0f2fe" }}>
-                                        Gewichtsverlauf
-                                    </Typography>
-                                </Box>
-
-                                <TableContainer component={Paper} sx={{ bgcolor: "transparent", boxShadow: "none" }}>
-                                    <Table>
-                                        <TableHead>
-                                            <TableRow>
-                                                <TableCell sx={{
-                                                    color: "#cbd5e1",
-                                                    borderColor: "rgba(59, 130, 246, 0.1)",
-                                                    fontSize: { xs: '0.75rem', sm: '0.875rem' },
-                                                    py: { xs: 1, sm: 2 }
-                                                }}>                                                Datum
-                                                </TableCell>
-                                                <TableCell sx={{
-                                                    color: "#cbd5e1",
-                                                    borderColor: "rgba(59, 130, 246, 0.1)",
-                                                    fontSize: { xs: '0.75rem', sm: '0.875rem' },
-                                                    py: { xs: 1, sm: 2 }
-                                                }}>                                                Gewicht
-                                                </TableCell>
-                                                {!isMobile && (
-                                                    <TableCell sx={{ color: "#93c5fd", borderColor: "rgba(59, 130, 246, 0.2)" }}>
-                                                        Notiz
-                                                    </TableCell>
-                                                )}
-                                                <TableCell sx={{
-                                                    color: "#cbd5e1",
-                                                    borderColor: "rgba(59, 130, 246, 0.1)",
-                                                    fontSize: { xs: '0.75rem', sm: '0.875rem' },
-                                                    py: { xs: 1, sm: 2 }
-                                                }}>                                                Aktionen
-                                                </TableCell>
-                                            </TableRow>
-                                        </TableHead>
-                                        <TableBody>
-                                            {gewichtData.length === 0 ? (
-                                                <TableRow>
-                                                    <TableCell sx={{
-                                                        color: "#cbd5e1",
-                                                        borderColor: "rgba(59, 130, 246, 0.1)",
-                                                        fontSize: { xs: '0.75rem', sm: '0.875rem' },
-                                                        py: { xs: 1, sm: 2 }
-                                                    }}>                                                    Noch keine Einträge vorhanden
-                                                    </TableCell>
-                                                </TableRow>
-                                            ) : (
-                                                gewichtData.map((entry, index) => (
-                                                    <TableRow key={entry.id}>
-                                                        <TableCell sx={{ color: "#cbd5e1", borderColor: "rgba(59, 130, 246, 0.1)" }}>
-                                                            {formatDate(entry.datum)}
-                                                        </TableCell>
-                                                        <TableCell sx={{
-                                                            color: "#cbd5e1",
-                                                            borderColor: "rgba(59, 130, 246, 0.1)",
-                                                            fontSize: { xs: '0.75rem', sm: '0.875rem' },
-                                                            py: { xs: 1, sm: 2 }
-                                                        }}>                                                        <Box display="flex" alignItems="center" gap={1}>
-                                                                <Typography fontWeight={600} sx={{ color: "#e0f2fe" }}>
-                                                                    {entry.gewicht} kg
-                                                                </Typography>
-                                                                {index < gewichtData.length - 1 && (
-                                                                    <Chip
-                                                                        size="small"
-                                                                        label={`${(entry.gewicht - gewichtData[index + 1].gewicht) > 0 ? '+' : ''}${(entry.gewicht - gewichtData[index + 1].gewicht).toFixed(1)} kg`}
-                                                                        sx={{
-                                                                            bgcolor: (entry.gewicht - gewichtData[index + 1].gewicht) < 0 ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)',
-                                                                            color: (entry.gewicht - gewichtData[index + 1].gewicht) < 0 ? '#22c55e' : '#ef4444',
-                                                                            fontSize: '0.7rem'
-                                                                        }}
-                                                                    />
-                                                                )}
-                                                            </Box>
-                                                        </TableCell>
-                                                        {!isMobile && (
-                                                            <TableCell sx={{ color: "#94a3b8", borderColor: "rgba(59, 130, 246, 0.1)" }}>
-                                                                {entry.notiz || "—"}
-                                                            </TableCell>
-                                                        )}
-                                                        <TableCell sx={{
-                                                            color: "#cbd5e1",
-                                                            borderColor: "rgba(59, 130, 246, 0.1)",
-                                                            fontSize: { xs: '0.75rem', sm: '0.875rem' },
-                                                            py: { xs: 1, sm: 2 }
-                                                        }}>                                                        <IconButton
-                                                            size="small"
-                                                            onClick={() => handleEdit(entry)}
-                                                            sx={{ color: "#3b82f6", mr: 1 }}
-                                                        >
-                                                                <EditIcon fontSize="small" />
-                                                            </IconButton>
-                                                            <IconButton
-                                                                size="small"
-                                                                onClick={() => setDeleteDialog({ open: true, id: entry.id })}
-                                                                sx={{ color: "#ef4444" }}
-                                                            >
-                                                                <DeleteIcon fontSize="small" />
-                                                            </IconButton>
-                                                        </TableCell>
-                                                    </TableRow>
-                                                ))
-                                            )}
-                                        </TableBody>
-                                    </Table>
-                                </TableContainer>
-                            </CardContent>
-                        </Card> */}
                     </Container>
 
                     {/* Add Dialog (replaces inline 'Gewicht eintragen' card) */}
@@ -531,6 +411,11 @@ function GewichtTrackingPage() {
                             compact={false}
                             onError={(error) => setMessage({ type: "error", text: error })}
                         />
+
+                        <GewichtWochenVerlauf
+                            nutzerId={nutzer?.id}
+                        />
+
                     </Container>
                 </Box>
             </ThemeProvider>
