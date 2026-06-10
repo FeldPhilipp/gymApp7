@@ -367,3 +367,14 @@ exports.updateZielEinstellungen = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+exports.setPremium = async (req, res) => {
+  try {
+    const { id } = req.body;
+    await db.query('UPDATE nutzer SET premium_status = 1 WHERE id = ?', [id]);
+    res.json({ message: 'Nutzer auf Premium upgegradet' });
+  } catch (error) {
+    console.error('Fehler beim Upgraden auf Premium:', error);
+    res.status(500).json({ error: error.message });
+  }
+}
