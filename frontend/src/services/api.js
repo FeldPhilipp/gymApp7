@@ -169,4 +169,12 @@ export const AdminApi = {
     getIndividual: (queryString) => api.get(`/admin/individual?${queryString}`),
 };
 
+export const CardioApi = {
+    getSessions: () => api.get('/cardio'),
+    getStats: () => api.get('/cardio/stats'),
+    createSession: (data) => api.post('/cardio', data),
+    updateSession: (id, data) => api.put(`/cardio/${id}`, data),
+    deleteSession: (id) => api.delete(`/cardio/${id}`),
+};
+
 export default api;

@@ -33,6 +33,7 @@ import BenachrichtigungenDropdown from './BenachrichtigungenDropdown';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import FeedbackIcon from '@mui/icons-material/Feedback';
 import CalculateIcon from '@mui/icons-material/Calculate';
+import DirectionsRunIcon from '@mui/icons-material/DirectionsRun';
 import { UserApi } from '../../services/api';
 import { useDrawer } from '../context/DrawerContext';
 
@@ -75,10 +76,11 @@ const NavBar = () => {
   const navItems = isLoggedIn
     ? [
       { label: 'Home', path: '/dashboard', icon: <HomeIcon /> },
-      { label: 'Gruppen', path: '/gruppen', icon: <GroupIcon /> },
       { label: 'Training', path: '/addTraining', icon: <FitnessCenterIcon /> },
+      { label: 'Cardio', path: '/cardio', icon: <DirectionsRunIcon /> },
       { label: 'Max Rep', path: '/maxRepCalc', icon: <CalculateIcon /> },
       { label: 'Tracker', path: '/tracker', icon: <ScaleIcon /> },
+      { label: 'Gruppen', path: '/gruppen', icon: <GroupIcon /> },
       { label: 'Feedback', path: '/feedback', icon: <FeedbackIcon /> },
       ...(isAdmin ? [{ label: 'Admin', path: '/admin', icon: <AdminPanelSettingsIcon /> }] : []),
     ]

@@ -21,9 +21,7 @@ import Notification from "../../util/notifications/Notification";
 // ─── Konstanten ───────────────────────────────────────────────────────────────
 
 const ALLOWED_TABLES = [
-    'nutzer', 'uebungen', 'training_sessions', 'training_ergebnisse',
-    'gym_termine', 'feedback', 'custom_trainingsplan', 'custom_plan_uebungen',
-    'gruppen', 'gruppen_mitglieder', 'gewicht_eintraege',
+    'nutzer', 'uebungen', 'nutzer_eigene_uebungen', 'trainings_ergebnisse'
 ];
 
 const darkCard = {

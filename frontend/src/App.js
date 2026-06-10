@@ -30,6 +30,7 @@ import AllHighscores from './components/pages/features/AllHighscores';
 import OneRepMaxCalc from './components/pages/features/OneRepMaxCalc';
 import Kommentare from './components/shared/Kommentare';
 import PremiumAcc from './components/pages/user/PremiumAcc';
+import Cardio from './components/pages/cardio/Cardio';
 import {
   ProtectedGroupRoute,
   ProtectedUserRoute,
@@ -262,6 +263,7 @@ function App() {
                 <Route path='/allHighscores/:gruppeId' element={<ProtectedGroupRoute><AllHighscores /></ProtectedGroupRoute>} />
                 <Route path='/user/uebung-erstellen' element={<ProtectedUserRoute><UserUebung /></ProtectedUserRoute>} />
                 <Route path='/maxRepCalc' element={<ProtectedUserRoute><OneRepMaxCalc /></ProtectedUserRoute>} />
+                <Route path='/cardio' element={<ProtectedUserRoute><Cardio /></ProtectedUserRoute>} />
               </Routes>
             </BrowserRouter>
           </DrawerProvider>

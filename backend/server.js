@@ -20,14 +20,15 @@ const nutzerController = require('./controllers/nutzerController');
 const gewichtRoutes = require('./routes/gewichtRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const espRoutes = require('./routes/espRoutes');
+const cardioRoutes = require('./routes/cardioRoutes');
 
 const app = express();
 const server = http.createServer(app); // ⭐ NEU: HTTP-Server erstellen
 const PORT = process.env.PORT || 3001;
 
 const allowedOrigins = process.env.NODE_ENV === 'production'
-? ['https://akkkker.de', 'https://www.akkkker.de']
-: ['http://localhost:3000', 'http://localhost:3001'];
+  ? ['https://akkkker.de', 'https://www.akkkker.de']
+  : ['http://localhost:3000', 'http://localhost:3001'];
 
 // ⭐ NEU: Socket.io konfigurieren
 const io = new Server(server, {
@@ -82,6 +83,7 @@ app.use('/api/custom-trainingsplan', authMiddleware, customTrainingsPlanRoutes);
 app.use('/api/gewicht', authMiddleware, gewichtRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/esp', authMiddleware, espRoutes);
+app.use('/api/cardio', authMiddleware, cardioRoutes);
 
 // ⭐ NEU: Socket.io Connection Handling
 io.on('connection', (socket) => {
