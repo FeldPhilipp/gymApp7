@@ -10,20 +10,6 @@ const api = axios.create({
     withCredentials: true, // ⭐ NEU: Cookies bei jedem Request senden!
 });
 
-// ⭐ ENTFERNT: Token aus localStorage (wird jetzt als Cookie gesendet)
-// api.interceptors.request.use(
-//     (config) => {
-//         const token = localStorage.getItem('token');
-//         if (token) {
-//             config.headers.Authorization = `Bearer ${token}`;
-//         }
-//         return config;
-//     },
-//     (error) => {
-//         return Promise.reject(error);
-//     }
-// );
-
 // Interceptor: Bei 401-Fehler NUR loggen, kein Auto-Redirect
 // Das Redirect-Handling übernimmt der AuthContext
 api.interceptors.response.use(
@@ -180,6 +166,7 @@ export const AdminApi = {
     getTermine: () => api.get('/admin/termine'),
     addUebung: (data) => api.post('/admin/addUebung', data),
     getLogs: () => api.get('/admin/logs'),
+    getIndividual: (queryString) => api.get(`/admin/individual?${queryString}`),
 };
 
 export default api;
