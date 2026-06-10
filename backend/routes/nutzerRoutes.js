@@ -35,4 +35,6 @@ router.get('/validate-session', nutzerController.validateSession);
 // ⭐ NEU: Logout (POST)
 router.post('/logout', nutzerController.logout);
 
+router.post('/setPremium', nutzerController.setPremium);
+
 module.exports = router;

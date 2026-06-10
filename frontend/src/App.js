@@ -29,6 +29,7 @@ import { DrawerProvider } from './components/context/DrawerContext';
 import AllHighscores from './components/pages/features/AllHighscores';
 import OneRepMaxCalc from './components/pages/features/OneRepMaxCalc';
 import Kommentare from './components/shared/Kommentare';
+import PremiumAcc from './components/pages/user/PremiumAcc';
 import {
   ProtectedGroupRoute,
   ProtectedUserRoute,
@@ -237,7 +238,7 @@ function App() {
           <DrawerProvider>
             <BrowserRouter>
               <Routes>
-                <Route path='/test' element={<Test />} />
+                <Route path='/test' element={<PremiumAcc />} />
                 <Route path='/' element={<LandingPage />} />
                 <Route path='/login' element={<LoginDark />} />
                 <Route path='/forgot-password' element={<ForgotPassword />} />
