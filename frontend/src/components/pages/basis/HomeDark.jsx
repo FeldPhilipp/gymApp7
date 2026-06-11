@@ -204,6 +204,7 @@ function HomeDark() {
                 onChange={handleAnsichtChange}
                 size="small"
                 sx={{
+                  mb: 2,
                   backgroundColor: 'background.paper',
                   borderRadius: '16px',
                   '& .MuiToggleButton-root': {

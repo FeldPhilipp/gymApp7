@@ -100,7 +100,6 @@ export const TrainingApi = {
     saveTempSession: (data) => api.post('/training/temp-session', data),
     getTempSession: (nutzerId) => api.get(`/training/temp-session/${nutzerId}`),
     deleteTempSession: (nutzerId) => api.delete(`/training/temp-session/${nutzerId}`),
-    getCustomPlaene: (nutzerId) => api.get(`/custom-trainingsplan/nutzer/${nutzerId}`),
     getCustomPlanUebungen: (planId, nutzerId) =>
         api.get(`/custom-trainingsplan/${planId}`, { params: { nutzerId } }),
 
@@ -175,6 +174,29 @@ export const CardioApi = {
     createSession: (data) => api.post('/cardio', data),
     updateSession: (id, data) => api.put(`/cardio/${id}`, data),
     deleteSession: (id) => api.delete(`/cardio/${id}`),
+};
+
+export const AuthApi = {
+    login: (data) => api.post('/auth/login', data),
+    register: (data) => api.post('/auth/register', data),
+    logout: () => api.post('/auth/logout'),
+    getMe: () => api.get('/auth/me'),
+};
+
+// Premium-Verwaltung: Status prüfen, Abo starten/kündigen und Daten exportieren
+export const PremiumApi = {
+    /** Prüft ob User Premium ist + Ablaufdatum */
+    getStatus: (nutzerId) =>
+        api.get(`/sub/status/${nutzerId}`),
+ 
+    /** Nach PayPal-Zahlung: Premium im Backend aktivieren */
+    activatePremium: (data) =>
+        api.post('/sub/activate', data),
+    // data: { nutzerId, plan, paypalOrderId }
+ 
+    /** Abo kündigen */
+    cancelSubscription: (nutzerId) =>
+        api.post('/sub/cancel', { nutzerId }),
 };
 
 export default api;

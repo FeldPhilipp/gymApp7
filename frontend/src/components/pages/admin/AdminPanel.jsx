@@ -1,6 +1,7 @@
 import NavBar from "../../layout/NavBar";
 import NavBarBot from "../../layout/NavBarBot";
 import { darkTheme } from "../../../theme/darkTheme";
+import { useNavigate } from 'react-router-dom';
 import { ThemeProvider } from "@mui/material/styles";
 import {
     Box, Container, Button, Typography, Dialog, DialogTitle,
@@ -17,6 +18,7 @@ import StorageIcon from '@mui/icons-material/Storage';
 import { AdminApi } from "../../../services/api";
 import { useState, useCallback } from "react";
 import Notification from "../../util/notifications/Notification";
+import FeedbackIcon from '@mui/icons-material/Feedback';
 
 // ─── Konstanten ───────────────────────────────────────────────────────────────
 
@@ -319,6 +321,8 @@ const AdminPanel = () => {
     const [formErrors, setFormErrors] = useState({});
     const [message, setMessage] = useState({ type: '', text: '' });
 
+    const navigate = useNavigate();
+
     const handleTabChange = useCallback(async (_, newVal) => {
         setActiveTab(newVal);
         if (newVal === 1 && !logsLoaded) {
@@ -401,6 +405,16 @@ const AdminPanel = () => {
                         sx={{ mb: 1.5, borderRadius: '12px', textTransform: 'none', fontSize: '13px', fontWeight: 500, borderColor: 'rgba(148,163,184,.25)', color: '#94a3b8', '&:hover': { background: 'rgba(255,255,255,.04)', borderColor: 'rgba(148,163,184,.4)' } }}
                     >
                         Übung hinzufügen
+                    </Button>
+
+                    {/* Navigation zur Feedbackübersicht */}
+                    <Button
+                        fullWidth variant="outlined"
+                        startIcon={<FeedbackIcon sx={{ fontSize: 15 }} />}
+                        onClick={() => navigate('/feedback-ubersicht')}
+                        sx={{ mb: 1.5, borderRadius: '12px', textTransform: 'none', fontSize: '13px', fontWeight: 500, borderColor: 'rgba(148,163,184,.25)', color: '#94a3b8', '&:hover': { background: 'rgba(255,255,255,.04)', borderColor: 'rgba(148,163,184,.4)' } }}
+                    >
+                        Feedback anzeigen
                     </Button>
 
                     {/* Haupt-Card */}

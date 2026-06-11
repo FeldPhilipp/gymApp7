@@ -21,6 +21,7 @@ const gewichtRoutes = require('./routes/gewichtRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const espRoutes = require('./routes/espRoutes');
 const cardioRoutes = require('./routes/cardioRoutes');
+const premAccRoutes = require('./routes/premAccRoutes');
 
 const app = express();
 const server = http.createServer(app); // ⭐ NEU: HTTP-Server erstellen
@@ -56,6 +57,9 @@ app.use(cors({
   credentials: true
 }));
 
+// ⚠️ WICHTIG: Stripe Webhook braucht den raw Body – MUSS vor express.json() stehen!
+app.use('/api/sub/webhook', express.raw({ type: 'application/json' }));
+
 app.use(express.json());
 
 // Öffentliche Routes (OHNE authMiddleware)
@@ -84,6 +88,9 @@ app.use('/api/gewicht', authMiddleware, gewichtRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/esp', authMiddleware, espRoutes);
 app.use('/api/cardio', authMiddleware, cardioRoutes);
+// ⚠️ Webhook ist öffentlich (Stripe ruft ihn auf, kein Cookie-Auth möglich)
+app.use('/api/sub/webhook', premAccRoutes);
+app.use('/api/sub', authMiddleware, premAccRoutes);
 
 // ⭐ NEU: Socket.io Connection Handling
 io.on('connection', (socket) => {

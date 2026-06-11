@@ -147,6 +147,7 @@ function GewichtStatistik({ nutzerId, compact = false }) {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
+                    mb: 3
                 }}
             >
                 <CircularProgress />
