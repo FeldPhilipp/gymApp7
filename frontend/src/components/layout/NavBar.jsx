@@ -10,6 +10,13 @@ import MenuIcon from '@mui/icons-material/Menu';
 import WorkspacePremiumIcon from '@mui/icons-material/WorkspacePremium';
 import LockIcon from '@mui/icons-material/Lock';
 import CloseIcon from '@mui/icons-material/Close';
+import HomeIcon from '@mui/icons-material/Home';
+import FitnessCenterIcon from '@mui/icons-material/FitnessCenter';
+import RestaurantIcon from '@mui/icons-material/Restaurant';
+import ScaleIcon from '@mui/icons-material/Scale';
+import BarChartIcon from '@mui/icons-material/BarChart';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+
 import { darkTheme } from '../../theme/darkTheme';
 import { PremiumApi } from '../../services/api';
 import PremiumModal from '../util/Dialogs/PremiumModal';
@@ -18,12 +25,12 @@ import { useAuth } from '../context/AuthContext';
 // ─── Nav-Einträge ────────────────────────────────────────────────────────────
 // premiumRequired: true  →  gesperrt für Nicht-Premium-Nutzer
 const NAV_ITEMS = [
-    { label: 'Home', path: '/home', premiumRequired: false },
-    { label: 'Training', path: '/training', premiumRequired: false },
-    { label: 'Ernährung', path: '/ernaehrung', premiumRequired: true },
-    { label: 'Gewicht', path: '/gewicht', premiumRequired: true },
-    { label: 'Statistiken', path: '/statistiken', premiumRequired: true },
-    { label: 'Fortschritt', path: '/fortschritt', premiumRequired: true },
+    { label: 'Home', path: '/home', premiumRequired: false, icon: <HomeIcon /> },
+    { label: 'Training', path: '/training', premiumRequired: false, icon: <FitnessCenterIcon /> },
+    { label: 'Ernährung', path: '/ernaehrung', premiumRequired: true, icon: <RestaurantIcon /> },
+    { label: 'Gewicht', path: '/gewicht', premiumRequired: true, icon: <ScaleIcon /> },
+    { label: 'Statistiken', path: '/statistiken', premiumRequired: true, icon: <BarChartIcon /> },
+    { label: 'Fortschritt', path: '/fortschritt', premiumRequired: true, icon: <TrendingUpIcon /> },
 ];
 
 export default function NavBar() {
@@ -119,6 +126,11 @@ export default function NavBar() {
                     {isLocked && (
                         <ListItemIcon sx={{ minWidth: 32 }}>
                             <LockIcon sx={{ fontSize: 16, color: 'text.disabled' }} />
+                        </ListItemIcon>
+                    )}
+                    {!isLocked && item.icon && (
+                        <ListItemIcon sx={{ minWidth: 36 }}>
+                            {item.icon}
                         </ListItemIcon>
                     )}
                     <ListItemText
